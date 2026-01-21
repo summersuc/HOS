@@ -19,6 +19,7 @@ import PersonaEditor from './pages/PersonaEditor';
 import PresetsManager from './pages/PresetsManager';
 import ContactPicker from './components/ContactPicker';
 import APISettings from '../Settings/pages/APIPage';
+import BeautifyEditor from './pages/BeautifyEditor';
 
 const TABS = [
     { id: 'chat', label: '消息', icon: MessageSquare },
@@ -118,6 +119,7 @@ const Messenger = ({ onClose }) => {
                                         onEditPersona={(personaId) => openPage({ type: 'persona', id: personaId }, false)}
                                         onNewPersona={() => openPage({ type: 'persona', id: null }, false)}
                                         onOpenSettings={() => openPage({ type: 'settings' }, false)}
+                                        onOpenBeautify={() => openPage({ type: 'beautify' }, false)}
                                     />
                                 )}
                             </motion.div>
@@ -268,6 +270,9 @@ const Messenger = ({ onClose }) => {
                 )}
                 {currentPage?.type === 'settings' && (
                     <APISettings key="settings" onBack={closePage} />
+                )}
+                {currentPage?.type === 'beautify' && (
+                    <BeautifyEditor key="beautify" onBack={closePage} />
                 )}
             </AnimatePresence>
         </div>

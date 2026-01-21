@@ -1,10 +1,10 @@
 import React from 'react';
-import { Plus, Check, Settings, ChevronRight, Sparkles } from 'lucide-react';
+import { Plus, Check, Settings, ChevronRight, Sparkles, Palette } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
 
-const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings }) => {
+const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings, onOpenBeautify }) => {
     const personas = useLiveQuery(() => db.userPersonas.toArray());
     const activePersona = personas?.find(p => p.isActive);
 
@@ -90,6 +90,15 @@ const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings }) => {
                                 <Settings size={22} className="text-white" />
                             </div>
                             <span className="flex-1 font-medium text-[15px] text-gray-900 dark:text-white">聊天设置</span>
+                            <ChevronRight size={18} className="text-gray-300" />
+                        </div>
+
+                        {/* Beautify Entry */}
+                        <div onClick={() => { triggerHaptic(); onOpenBeautify?.(); }} className="flex items-center gap-3.5 px-4 py-3.5 cursor-pointer active:bg-gray-50 dark:active:bg-white/5 transition-colors border-t border-gray-100 dark:border-white/5">
+                            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center shadow-lg shadow-pink-400/20">
+                                <Palette size={22} className="text-white" />
+                            </div>
+                            <span className="flex-1 font-medium text-[15px] text-gray-900 dark:text-white">美化仓库</span>
                             <ChevronRight size={18} className="text-gray-300" />
                         </div>
                     </div>

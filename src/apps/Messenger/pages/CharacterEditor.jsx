@@ -16,6 +16,7 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
         nickname: '',
         avatar: '',
         description: '',
+        relationship: '', // New Field
         firstMessage: '',
         scenario: '',
         personality: '',
@@ -153,6 +154,17 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
                             onChange={e => handleChange('description', e.target.value)}
                             placeholder="描述角色的性格、外貌、背景故事..."
                             className="w-full h-32 bg-transparent resize-none text-[15px] text-gray-800 dark:text-white placeholder-gray-300 focus:outline-none leading-relaxed"
+                        />
+                    </Field>
+
+                    {/* New Relationship Field */}
+                    <Field label="与用户的关系" icon="❤️">
+                        <input
+                            type="text"
+                            value={form.relationship}
+                            onChange={e => handleChange('relationship', e.target.value)}
+                            placeholder="例如：青梅竹马、死对头、陌生人..."
+                            className="w-full bg-transparent text-[15px] text-gray-800 dark:text-white placeholder-gray-300 focus:outline-none"
                         />
                     </Field>
 

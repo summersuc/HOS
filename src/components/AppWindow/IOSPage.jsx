@@ -6,7 +6,7 @@ import { motion, useAnimation, useMotionValue, useTransform, useDragControls } f
  * - Handles Slide In/Out animations (Optimized)
  * - Implements "Swipe to Go Back" gesture
  */
-const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = true }) => {
+const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = true, showBackButton = true }) => {
     // Shared motion value for drag x position
     const x = useMotionValue(0);
     const controls = useAnimation();
@@ -121,13 +121,15 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
             {/* Header */}
             {title && (
                 <div className="h-[50px] shrink-0 flex items-center justify-between px-2 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-xl border-b border-gray-100 dark:border-[#2C2C2E] pt-[env(safe-area-inset-top)] box-content z-10 transition-colors duration-300">
-                    <button
-                        onClick={onBack}
-                        className="p-2 flex items-center gap-1 text-blue-500 active:opacity-50 transition-opacity"
-                    >
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                        <span className="text-[17px] font-normal">Back</span>
-                    </button>
+                    {showBackButton && (
+                        <button
+                            onClick={onBack}
+                            className="p-2 flex items-center gap-1 text-blue-500 active:opacity-50 transition-opacity"
+                        >
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                            <span className="text-[17px] font-normal">Back</span>
+                        </button>
+                    )}
                     <span className="text-[17px] font-semibold text-gray-900 dark:text-white truncate max-w-[50%]">{title}</span>
                     <div className="w-[70px] flex justify-end">
                         {rightButton}

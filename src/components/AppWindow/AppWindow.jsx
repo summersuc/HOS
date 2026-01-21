@@ -8,12 +8,14 @@ import { appRegistry } from '../../config/appRegistry';
 import Settings from '../../apps/Settings';
 import Messenger from '../../apps/Messenger';
 import Calendar from '../../apps/Calendar';
+import Music from '../../apps/Music';
 
 // 组件映射表
 const APP_COMPONENTS = {
     settings: Settings,
     messenger: Messenger,
     calendar: Calendar,
+    music: Music,
     // 其他 App 暂时未实现，后续添加
 };
 

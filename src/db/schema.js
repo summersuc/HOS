@@ -2,6 +2,12 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('HoshinoOS_Pro');
 
+// Handle upgrade blocking
+db.on('versionchange', function (event) {
+    db.close();
+    window.location.reload();
+});
+
 // 数据库版本 1
 db.version(1).stores({
     settings: 'key',
@@ -62,6 +68,28 @@ db.version(4).stores({
 
     // 消息 (支持分支)
     // 额外字段: content, branchIndex
+});
+
+// 数据库版本 5: 聊天富媒体支持 (Rich Media)
+db.version(5).stores({
+    // 升级 messages 表结构 (向后兼容)
+    messengerMessages: '++id, [conversationType+conversationId], role, timestamp'
+    // New fields: msgType (text, image, gift, transfer, redpacket), metadata (json object)
+});
+
+// 数据库版本 6: 角色关系与世界书 (Phase 2.5)
+db.version(6).stores({
+    characters: '++id, name, avatar, description, personality, relationship, createdAt'
+});
+
+// 数据库版本 8: 聊天设置增强 (No Punctuation)
+db.version(8).stores({
+    conversations: '++id, characterId, title, historyLimit, replyCount, noPunctuation, updatedAt'
+});
+
+// 数据库版本 9: 增加表情包 (Stickers)
+db.version(9).stores({
+    stickers: '++id, name, url, createdAt'
 });
 
 // Database Auto-Repair Logic (PWA Corruption Handle)

@@ -4,16 +4,112 @@ import IOSPage from '../../../components/AppWindow/IOSPage';
 
 const DataPage = ({ onBack }) => {
     const [usage, setUsage] = useState('计算中...');
+    const [debugInfo, setDebugInfo] = useState(''); // 新增调试信息
     const [importing, setImporting] = useState(false);
 
-    useEffect(() => {
-        // Estimate storage
+    const [lastUpdated, setLastUpdated] = useState(new Date());
+
+    const calculateUsage = async () => {
+        let usedBytes = 0;
+        let logs = [];
+        logs.push(`Time: ${new Date().toLocaleTimeString()}`);
+
+        // 1. Native API Check
         if (navigator.storage && navigator.storage.estimate) {
-            navigator.storage.estimate().then(estimate => {
-                const usedMB = (estimate.usage / 1024 / 1024).toFixed(2);
-                setUsage(`${usedMB} MB`);
-            });
+            try {
+                const estimate = await navigator.storage.estimate();
+                logs.push(`Native: ${(estimate.usage / 1024).toFixed(1)}KB`);
+                if (estimate.usage > 0) usedBytes = estimate.usage;
+            } catch (e) {
+                logs.push(`NativeErr: ${e.name}`);
+            }
+        } else {
+            logs.push('Native: N/A');
         }
+
+        // 2. Manual Calculation (Always run to correct iOS under-reporting)
+        try {
+            // A. Dexie
+            let dbSize = 0;
+            let fileCount = 0;
+            if (!db.tables || db.tables.length === 0) {
+                logs.push('DB: No Tables Found');
+            } else {
+                for (const table of db.tables) {
+                    try {
+                        const count = await table.count();
+                        if (count > 0) {
+                            const allItems = await table.toArray();
+                            let tableBytes = 0;
+                            // Helper to calc size
+                            const calcSize = (item) => {
+                                if (!item) return 0;
+                                if (item instanceof Blob) return item.size;
+                                if (typeof item === 'string') return item.length * 2;
+                                if (typeof item === 'object') {
+                                    let s = 0;
+                                    for (let k in item) {
+                                        if (Object.prototype.hasOwnProperty.call(item, k)) {
+                                            s += k.length * 2;
+                                            s += calcSize(item[k]);
+                                        }
+                                    }
+                                    return s;
+                                }
+                                return 8; // number/bool
+                            };
+
+                            for (const item of allItems) tableBytes += calcSize(item);
+
+                            dbSize += tableBytes;
+                            fileCount += count;
+                            logs.push(`T[${table.name}]:${count}|${(tableBytes / 1024).toFixed(0)}KB`);
+                        }
+                    } catch (te) {
+                        logs.push(`TErr[${table.name}]: ${te.message}`);
+                    }
+                }
+            }
+
+            // B. LocalStorage
+            let lsSize = 0;
+            let lsKeys = [];
+            for (let x in localStorage) {
+                if (localStorage.hasOwnProperty(x)) {
+                    const size = ((localStorage[x].length + x.length) * 2);
+                    lsSize += size;
+                    lsKeys.push(x);
+                }
+            }
+            if (lsSize > 0) {
+                logs.push(`LS: ${(lsSize / 1024).toFixed(1)}KB`);
+            }
+
+            // TOTAL MANUAL
+            const manualTotal = dbSize + lsSize;
+            logs.push(`ManualTotal: ${(manualTotal / 1024).toFixed(1)}KB`);
+
+            // CRITICAL FIX: Use the larger of the two
+            // iOS often reports ~4KB native while DB has 100KB+. 
+            if (manualTotal > usedBytes) {
+                usedBytes = manualTotal;
+                logs.push('Used Manual (Native was smaller)');
+            } else {
+                logs.push('Used Native');
+            }
+
+        } catch (e) {
+            logs.push(`ManualErr: ${e.message}`);
+        }
+
+        const usedMB = (usedBytes / 1024 / 1024).toFixed(2);
+        setUsage(`${usedMB} MB`);
+        setDebugInfo(logs.join('\n'));
+        setLastUpdated(new Date());
+    };
+
+    useEffect(() => {
+        calculateUsage();
     }, []);
 
     const handleExport = async () => {
@@ -64,6 +160,8 @@ const DataPage = ({ onBack }) => {
         reader.readAsText(file);
     };
 
+    const [showDebug, setShowDebug] = useState(false);
+
     return (
         <IOSPage title="数据存储" onBack={onBack}>
             <div className="p-5 space-y-6">
@@ -73,6 +171,27 @@ const DataPage = ({ onBack }) => {
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900">{usage}</h2>
                     <p className="text-gray-500 text-sm mt-1">本地存储已占用</p>
+
+                    {/* Debug Info Display (Collapsible) */}
+                    <div className="mt-4">
+                        <button
+                            onClick={() => setShowDebug(!showDebug)}
+                            className="text-xs text-blue-500/80 mb-2 flex items-center justify-center gap-1 mx-auto active:opacity-50"
+                        >
+                            <span>{showDebug ? '隐藏详细诊断' : '显示详细诊断'}</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transform transition-transform ${showDebug ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+
+                        {showDebug && (
+                            <div className="p-2 bg-gray-50 rounded text-[10px] text-gray-400 font-mono break-all leading-tight text-left">
+                                <div className="flex justify-between items-center mb-1 pb-1 border-b border-gray-200/50">
+                                    <span className="font-bold">诊断日志</span>
+                                    <button onClick={calculateUsage} className="text-blue-500">刷新</button>
+                                </div>
+                                {debugInfo.split('\n').map((line, i) => <div key={i}>{line}</div>)}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="space-y-3">

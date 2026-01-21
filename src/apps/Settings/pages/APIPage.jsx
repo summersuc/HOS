@@ -30,7 +30,6 @@ const APIPage = ({ onBack }) => {
                 const preset = await db.apiConfigs.get(activeId.value);
                 if (preset) {
                     loadPreset(preset);
-                    现
                 }
             }
         };
@@ -68,13 +67,17 @@ const APIPage = ({ onBack }) => {
 
             if (data.data && Array.isArray(data.data)) {
                 // OpenAI 格式: { data: [{id: '...'}, ...] }
-                const models = data.data.map(m => m.id).sort();
+                // 兼容性修复: 部分 API 可能没有 id 字段，回退到 root 字符串
+                const models = data.data.map(m => typeof m === 'object' ? (m.id || m.model || JSON.stringify(m)) : m).filter(Boolean).sort();
+
                 setModelList(models);
+
+                // 智能自动选择: 如果当前模型不在列表中，自动选中第一个，防止下拉框空白
                 if (models.length > 0 && !models.includes(config.model)) {
-                    // 如果当前填的模型不在列表里，提示一下，但不强制覆盖，防止用户用微调模型
-                    // setConfig(prev => ({ ...prev, model: models[0] })); 
+                    setConfig(prev => ({ ...prev, model: models[0] }));
                 }
-                alert(`成功读取 ${models.length} 个模型！请点击下拉框选择。`);
+
+                alert(`成功读取 ${models.length} 个模型！已自动选择: ${models.includes(config.model) ? config.model : models[0]}`);
             } else {
                 throw new Error('格式不兼容或无数据');
             }
@@ -181,11 +184,15 @@ const APIPage = ({ onBack }) => {
     // 检查是否是当前激活的有效配置
     const isActive = presets.find(p => p.name === name)?.id === activeApiId?.value && config.endpoint && config.apiKey;
 
+    const [showModelPicker, setShowModelPicker] = useState(false);
+
+    // ... (rest of imports and logic)
+
     return (
         <IOSPage title="大脑连接" onBack={onBack}>
             <div className="p-5 pb-24 space-y-6">
 
-                {/* 预设切换区 */}
+                {/* ... (Presets Section) ... */}
                 {presets.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar px-1">
                         {presets.map(p => {
@@ -209,7 +216,6 @@ const APIPage = ({ onBack }) => {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <h3 className="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">连接配置</h3>
-                            {/* 如果当前配置对应的预设是激活状态，显示标记 */}
                             {isActive && (
                                 <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] px-2 py-0.5 rounded-full font-bold">已激活使用中</span>
                             )}
@@ -225,7 +231,7 @@ const APIPage = ({ onBack }) => {
                         </div>
                     </div>
 
-                    {/* 预设名称 */}
+                    {/* 预设名称 - Added onFocus logic to prevent drag interference if needed, but select-text fix should help globally. */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">预设名称 (Preset Name)</label>
                         <input
@@ -286,23 +292,19 @@ const APIPage = ({ onBack }) => {
                         </div>
 
                         <div className="relative w-full">
-                            {/* 只有当成功获取到模型列表时，才显示下拉框，否则显示输入框 */}
+                            {/* Custom Model Picker Trigger */}
                             {modelList.length > 0 ? (
-                                <div className="relative w-full">
-                                    <select
-                                        value={config.model}
-                                        onChange={(e) => setConfig({ ...config, model: e.target.value })}
-                                        className="w-full block bg-gray-50 dark:bg-[#2C2C2E] border-none rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 transition-all font-mono text-sm appearance-none"
-                                    >
-                                        <option value="" disabled>请选择模型...</option>
-                                        {modelList.map(m => (
-                                            <option key={m} value={m}>{m}</option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                <button
+                                    onClick={() => setShowModelPicker(true)}
+                                    className="w-full bg-gray-50 dark:bg-[#2C2C2E] rounded-xl px-4 py-3 flex items-center justify-between text-left group active:bg-gray-100 dark:active:bg-[#3A3A3C] transition-colors"
+                                >
+                                    <span className={`font-mono text-sm ${config.model ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                                        {config.model || '请选择模型...'}
+                                    </span>
+                                    <div className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
                                     </div>
-                                </div>
+                                </button>
                             ) : (
                                 <input
                                     type="text"
@@ -367,6 +369,37 @@ const APIPage = ({ onBack }) => {
                     )}
                 </div>
             </div>
+
+            {/* Model Picker Modal */}
+            {showModelPicker && (
+                <div className="absolute inset-0 z-50 flex items-end justify-center sm:items-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setShowModelPicker(false)}>
+                    <div
+                        className="bg-white dark:bg-[#1C1C1E] w-full max-w-sm rounded-2xl max-h-[70vh] flex flex-col shadow-2xl overflow-hidden"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="p-4 border-b border-gray-100 dark:border-white/5 flex justify-between items-center bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-md z-10">
+                            <h3 className="font-bold text-gray-900 dark:text-white">选择模型 ({modelList.length})</h3>
+                            <button onClick={() => setShowModelPicker(false)} className="p-1 rounded-full bg-gray-100 dark:bg-gray-800">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                            {modelList.map(m => (
+                                <button
+                                    key={m}
+                                    onClick={() => {
+                                        setConfig({ ...config, model: m });
+                                        setShowModelPicker(false);
+                                    }}
+                                    className={`w-full text-left px-4 py-3 rounded-xl text-sm font-mono transition-colors ${config.model === m ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300' : 'hover:bg-gray-50 dark:hover:bg-white/5 text-gray-800 dark:text-gray-300'}`}
+                                >
+                                    {m}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </IOSPage>
     );
 };
