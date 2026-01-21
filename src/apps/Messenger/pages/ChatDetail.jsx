@@ -6,6 +6,8 @@ import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
 import IOSPage from '../../../components/AppWindow/IOSPage';
 import { llmService } from '../../../services/LLMService';
+import NotificationService from '../../../services/NotificationService';
+import { appRegistry } from '../../../config/appRegistry';
 
 const ChatDetail = ({ conversationId, characterId, onBack, onProfile }) => {
     const [input, setInput] = useState('');
@@ -112,6 +114,21 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile }) => {
                 });
 
                 triggerHaptic();
+
+                // Trigger Push Notification
+                const userNotify = await db.notificationSettings.get('messenger');
+                const userMode = await db.settings.get('mode_messenger');
+                const notifyEnabled = userNotify ? userNotify.enabled : appRegistry.messenger.notificationEnabled;
+                const transMode = userMode ? userMode.value : appRegistry.messenger.transmissionMode;
+
+                if (notifyEnabled && transMode !== 'C') {
+                    NotificationService.send(character?.name || '新消息', {
+                        body: item.content,
+                        silent: transMode === 'B',
+                        tag: `messenger-${conversationId}`
+                    });
+                }
+
                 // Artificial Delay for "Reading/Typing" feel (800ms)
                 await new Promise(r => setTimeout(r, 800));
             }

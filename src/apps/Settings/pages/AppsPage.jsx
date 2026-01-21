@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Bell, BellRing } from 'lucide-react';
 import { appRegistry } from '../../../config/appRegistry';
 import IOSPage from '../../../components/AppWindow/IOSPage';
 import { db } from '../../../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
+import NotificationService from '../../../services/NotificationService';
+import { triggerHaptic } from '../../../utils/haptics';
 
 const MODE_LABELS = {
     'A': { label: '立即 (A)', desc: '实时响应', color: 'bg-green-100 text-green-700' },
@@ -111,6 +114,44 @@ const AppsPage = ({ onBack }) => {
                 {Object.values(appRegistry).filter(app => app.id !== 'settings').map(app => (
                     <AppItem key={app.id} app={app} />
                 ))}
+
+                {/* Notification Test Section */}
+                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1">通知测试</p>
+
+                    <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-sm space-y-3">
+                        <button
+                            onClick={() => {
+                                triggerHaptic();
+                                NotificationService.send('HoshinoOS 即时通知', {
+                                    body: '这是一条测试消息，点击查看详情 💬',
+                                    tag: 'test-instant'
+                                });
+                            }}
+                            className="w-full py-3 bg-gradient-to-r from-green-400 to-green-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-green-500/20"
+                        >
+                            <Bell size={18} /> 测试即时弹窗
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                triggerHaptic();
+                                alert('通知将在 5 秒后弹出，可以锁屏等待！');
+                                NotificationService.schedule('HoshinoOS 延迟通知', {
+                                    body: '这是 5 秒后的锁屏通知测试 🔔',
+                                    tag: 'test-delayed'
+                                }, 5000);
+                            }}
+                            className="w-full py-3 bg-gradient-to-r from-purple-400 to-purple-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-purple-500/20"
+                        >
+                            <BellRing size={18} /> 测试 5s 后锁屏弹窗
+                        </button>
+
+                        <p className="text-[11px] text-gray-400 text-center">
+                            首次测试需授权通知权限，锁屏弹窗需在 PWA 模式下测试
+                        </p>
+                    </div>
+                </div>
             </div>
         </IOSPage>
     );
