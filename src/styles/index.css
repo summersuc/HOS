@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* Force Tailwind v4 'dark' variant to use class strategy explicitly */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  --glass-highlight-opacity: 0.5;
+  --glass-border-opacity: 0.2;
+  --glass-shadow-opacity: 0.15;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --glass-highlight-opacity: 0.08;
+  /* Drastically reduced for dark mode */
+  --glass-border-opacity: 0.08;
+  --glass-shadow-opacity: 0.3;
+  /* Slightly stronger shadow for depth */
+}
+
+/* 全屏适配核心代码 */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 20px);
+  /* Default fallback */
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* Global Scrollbar Hiding */
+::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  /* 
+    核心修复：iOS Fullscreen 
+    必须允许 body 撑开，不能用 overflow: hidden 锁死，否则会黑边
+  */
+  min-height: 100vh;
+  background-color: transparent;
+  /* 改为透明，让 fixed wallpaper 显现 */
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#root {
+  width: 100%;
+  /* 同理，允许延伸 */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* 禁用 iOS 下拉刷新和橡皮筋效果 */
+body {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+
+/* Edit Mode Jiggle Animation */
+@keyframes jiggle {
+  0% {
+    transform: rotate(-1deg);
+  }
+
+  50% {
+    transform: rotate(1.5deg);
+  }
+
+  100% {
+    transform: rotate(-1deg);
+  }
+}
+
+.jiggle {
+  animation: jiggle 0.25s infinite;
+  cursor: grab;
+}
+
+/* 
+  核心修复：iOS 输入框放大 Bug
+  iOS Safari 会自动放大字号小于 16px 的输入框。
+  这里强制设为 16px 可以阻止这种行为。
+*/
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+/* 隐藏滚动条但允许滚动 */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
