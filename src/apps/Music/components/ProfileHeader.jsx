@@ -40,11 +40,11 @@ const ProfileHeader = ({ profile, onAction }) => {
 
                 <div className="flex items-center space-x-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
                     <div className="flex items-center space-x-1">
-                        <span>Follows <span className="text-gray-900 dark:text-white font-medium">{profile.follows || 12}</span></span>
+                        <span>关注 <span className="text-gray-900 dark:text-white font-medium">{profile.follows || 12}</span></span>
                     </div>
                     <div className="w-px h-3 bg-gray-300 dark:bg-white/20" />
                     <div className="flex items-center space-x-1">
-                        <span>Fans <span className="text-gray-900 dark:text-white font-medium">{profile.followeds || 89}</span></span>
+                        <span>粉丝 <span className="text-gray-900 dark:text-white font-medium">{profile.followeds || 89}</span></span>
                     </div>
                 </div>
             </div>

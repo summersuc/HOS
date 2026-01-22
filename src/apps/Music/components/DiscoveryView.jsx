@@ -49,6 +49,7 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
         setLoading(false);
     };
 
+
     // Helper to generic play
     const handlePlayList = (list) => {
         if (list && list.length > 0) {
@@ -65,7 +66,7 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
                     className="flex items-center space-x-2 bg-white dark:bg-white/10 p-2.5 rounded-full shadow-sm cursor-pointer"
                 >
                     <Search size={18} className="text-gray-400 ml-1" />
-                    <span className="text-sm text-gray-400 font-medium">Search songs, artists, playlists...</span>
+                    <span className="text-sm text-gray-400 font-medium">搜索歌曲、歌手、歌单...</span>
                 </div>
             </div>
 
@@ -85,7 +86,7 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
                     >
                         <div className="absolute inset-0 bg-gradient-to-br from-[#FF4B4B] to-[#FF2C2C]" />
                         <div className="absolute top-3 left-3 text-white font-bold text-base leading-tight z-10">
-                            Daily<br />Recommend
+                            每日<br />推荐
                         </div>
                         <div className="absolute bottom-3 left-3 flex items-center justify-center w-8 h-8 bg-white/20 backdrop-blur-md rounded-full border border-white/20 z-10">
                             <Calendar size={16} className="text-white" />
@@ -101,13 +102,13 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
                         className="flex-shrink-0 snap-center relative w-[130px] h-[160px] rounded-[16px] overflow-hidden cursor-pointer bg-white dark:bg-[#1C1C1E] shadow-sm border border-gray-100 dark:border-white/5"
                     >
                         <div className="absolute top-3 left-3 text-gray-900 dark:text-white font-bold text-base leading-tight">
-                            Private<br />Radar
+                            私人<br />雷达
                         </div>
                         <div className="absolute top-3 right-3 opacity-50">
                             <Radio size={20} className="text-gray-400 dark:text-gray-500" />
                         </div>
                         <div className="absolute bottom-0 w-full h-[60%] bg-gradient-to-t from-gray-100 dark:from-white/5 to-transparent flex items-end justify-center pb-2">
-                            <div className="text-[10px] text-gray-400 font-medium">Auto-Curated</div>
+                            <div className="text-[10px] text-gray-400 font-medium">猜你喜欢</div>
                         </div>
                     </motion.div>
 
@@ -119,7 +120,7 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
                     >
                         <div className="absolute inset-0 bg-gradient-to-br from-[#2C2C2E] to-[#000000]" />
                         <div className="absolute top-3 left-3 text-white font-bold text-base leading-tight">
-                            Private<br />Roaming
+                            私人<br />漫游
                         </div>
                         <div className="absolute bottom-3 left-3 flex items-center justify-center w-8 h-8 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
                             <InfinityIcon size={16} className="text-white" />
@@ -131,12 +132,12 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
             {/* --- 2. Recommended Playlists (Account) --- */}
             <div className="mb-4 pl-1">
                 <div className="px-4 mb-3 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-900 dark:text-white text-base">Recommended Playlists</h3>
+                    <h3 className="font-bold text-gray-900 dark:text-white text-base">推荐歌单</h3>
                     <div
                         onClick={() => setShowAllPlaylists(!showAllPlaylists)}
                         className="px-2 py-1 rounded-full border border-gray-200 dark:border-white/10 text-[10px] font-bold text-gray-500 flex items-center cursor-pointer active:bg-gray-100 dark:active:bg-white/10 transition-colors"
                     >
-                        {showAllPlaylists ? "Less" : "More"} <ChevronRight size={10} className={`transform transition-transform ${showAllPlaylists ? 'rotate-90' : ''}`} />
+                        {showAllPlaylists ? "收起" : "更多"} <ChevronRight size={10} className={`transform transition-transform ${showAllPlaylists ? 'rotate-90' : ''}`} />
                     </div>
                 </div>
 
@@ -193,9 +194,9 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
             {/* --- 3. Favorites & Recommendations --- */}
             <div className="px-4 pb-4">
                 <div className="flex items-center justify-between mb-3 px-1">
-                    <h3 className="font-bold text-gray-900 dark:text-white text-base">Favorites & Recommendations</h3>
+                    <h3 className="font-bold text-gray-900 dark:text-white text-base">猜你喜欢</h3>
                     <div className="px-2 py-1 rounded-full border border-gray-200 dark:border-white/10 text-[10px] font-bold text-gray-500 flex items-center cursor-pointer">
-                        Play All <ChevronRight size={10} />
+                        播放全部 <ChevronRight size={10} />
                     </div>
                 </div>
 
@@ -208,9 +209,9 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
                             <Heart fill="currentColor" size={24} />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-sm dark:text-white truncate">My Liked Music</h4>
+                            <h4 className="font-bold text-sm dark:text-white truncate">我喜欢的音乐</h4>
                             <p className="text-xs text-gray-500 truncate">
-                                {likedSongs.length > 0 ? `Play ${likedSongs.length} recent favorites` : 'Your heart collection'}
+                                {likedSongs.length > 0 ? `播放 ${likedSongs.length} 首近期红心歌曲` : '你的红心收藏'}
                             </p>
                         </div>
                         <button className="text-red-500 px-2 py-1">

@@ -98,7 +98,7 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
                     <ChevronDown size={32} />
                 </button>
                 <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">Now Playing</span>
+                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">正在播放</span>
                 </div>
                 {/* Placeholder for Lyrics/Details toggle if needed */}
                 <div className="w-8" />

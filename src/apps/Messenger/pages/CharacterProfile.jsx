@@ -1,4 +1,5 @@
 import React from 'react';
+import Avatar from '../components/Avatar';
 import { MessageCircle, Settings, MoreHorizontal, ChevronRight } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
@@ -16,12 +17,9 @@ const CharacterProfile = ({ characterId, onBack, onMessage, onEdit }) => {
             <div className="bg-[#F2F2F7] dark:bg-black min-h-full pb-10">
                 {/* Header Info */}
                 <div className="bg-white dark:bg-[#1C1C1E] pb-6 pt-4 px-4 flex flex-col items-center border-b border-gray-200 dark:border-white/5 mb-3">
-                    <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 dark:bg-[#2C2C2E] mb-4 shadow-sm border border-gray-100 dark:border-white/5">
-                        {character.avatar ? (
-                            <img src={character.avatar} className="w-full h-full object-cover" alt="" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl font-bold">{character.name?.[0]}</div>
-                        )}
+
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 dark:bg-[#2C2C2E] mb-4 shadow-sm border border-gray-100 dark:border-white/5 flex items-center justify-center">
+                        <Avatar src={character.avatar} name={character.name} size={96} className="rounded-2xl" />
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{character.nickname || character.name}</h2>
                     {character.nickname && <p className="text-gray-500 text-sm">姓名: {character.name}</p>}

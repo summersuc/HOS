@@ -49,14 +49,14 @@ const PlaylistView = ({ userId, onSelectPlaylist }) => {
         <div className="flex flex-col pb-32 px-4 bg-[#F2F4F6] dark:bg-black min-h-full">
             {/* --- Quick Actions (Logout) --- */}
             <div className="flex justify-between items-center mb-6 pt-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">My Music</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">我的音乐</h2>
                 <div className="flex space-x-2">
                     <button
                         onClick={handleLogout}
                         className="flex items-center space-x-1 px-3 py-1.5 bg-gray-200 dark:bg-white/10 rounded-full text-xs font-medium text-gray-600 dark:text-gray-300 active:scale-95 transition"
                     >
                         <LogOut size={14} />
-                        <span>Logout</span>
+                        <span>退出登录</span>
                     </button>
                 </div>
             </div>
@@ -74,8 +74,8 @@ const PlaylistView = ({ userId, onSelectPlaylist }) => {
                         <Heart fill="currentColor" size={24} />
                     </div>
                     <div className="flex-1 relative z-10">
-                        <h3 className="text-lg font-bold text-white">My Favorites</h3>
-                        <p className="text-xs text-white/80 font-medium mt-0.5">{myFavorite.trackCount} songs</p>
+                        <h3 className="text-lg font-bold text-white">我喜欢的音乐</h3>
+                        <p className="text-xs text-white/80 font-medium mt-0.5">{myFavorite.trackCount} 首歌曲</p>
                     </div>
                     <div className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white border border-white/20">
                         <Play size={16} fill="currentColor" className="ml-0.5" />
@@ -87,7 +87,7 @@ const PlaylistView = ({ userId, onSelectPlaylist }) => {
             <div className="mb-6">
                 <div className="flex items-center justify-between mb-3 px-1">
                     <div className="flex items-center space-x-1">
-                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created Playlists</span>
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">创建的歌单</span>
                         <span className="text-[10px] bg-gray-200 dark:bg-white/10 text-gray-500 px-1.5 rounded-full">{created.length}</span>
                     </div>
                     <button className="p-1 bg-gray-200 dark:bg-white/10 rounded-full text-gray-600 dark:text-gray-300">
@@ -104,7 +104,7 @@ const PlaylistView = ({ userId, onSelectPlaylist }) => {
                 <div className="mb-4">
                     <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex items-center space-x-1">
-                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Collected Playlists</span>
+                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">收藏的歌单</span>
                             <span className="text-[10px] bg-gray-200 dark:bg-white/10 text-gray-500 px-1.5 rounded-full">{subscribed.length}</span>
                         </div>
                     </div>

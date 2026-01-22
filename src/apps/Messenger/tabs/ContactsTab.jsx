@@ -1,4 +1,5 @@
 import React from 'react';
+import Avatar from '../components/Avatar';
 import { Search, Plus, Star, ChevronRight, Users } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
@@ -107,15 +108,7 @@ const ContactItem = ({ char, onSelect, isLast }) => (
         className="flex items-center gap-3.5 px-4 py-3 cursor-pointer active:bg-gray-50 dark:active:bg-white/5 transition-colors"
         style={{ borderBottom: isLast ? 'none' : '0.5px solid rgba(0,0,0,0.06)' }}
     >
-        <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-[#2C2C2E] dark:to-[#3C3C3E] shrink-0 shadow">
-            {char.avatar ? (
-                <img src={char.avatar} className="w-full h-full object-cover" alt="" />
-            ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg font-bold">
-                    {char.name?.[0] || '?'}
-                </div>
-            )}
-        </div>
+        <Avatar src={char.avatar} name={char.name} size={44} className="rounded-full shadow" />
         <span className="flex-1 font-medium text-[16px] text-gray-900 dark:text-white">{char.nickname || char.name}</span>
         <ChevronRight size={18} className="text-gray-300" />
     </div>

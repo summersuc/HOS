@@ -3,6 +3,7 @@ import { Search, Plus } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
+import Avatar from '../components/Avatar';
 
 const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
     const conversations = useLiveQuery(() =>
@@ -55,15 +56,7 @@ const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
                                 className="flex items-center gap-3 pl-4 pr-4 py-3 cursor-pointer active:bg-gray-100 dark:active:bg-[#2C2C2E] transition-colors"
                             >
                                 {/* Avatar */}
-                                <div className="w-[50px] h-[50px] rounded-xl overflow-hidden bg-gray-100 dark:bg-[#2C2C2E] shrink-0 border border-black/5 dark:border-white/5">
-                                    {char?.avatar ? (
-                                        <img src={char.avatar} className="w-full h-full object-cover" alt="" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg font-bold">
-                                            {char?.name?.[0] || '?'}
-                                        </div>
-                                    )}
-                                </div>
+                                <Avatar src={char?.avatar} name={char?.name} size={50} />
 
                                 {/* Content */}
                                 <div className="flex-1 min-w-0 h-[50px] flex flex-col justify-center border-b border-gray-100 dark:border-white/5 mr-[-16px] pr-4">

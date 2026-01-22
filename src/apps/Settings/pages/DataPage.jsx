@@ -112,22 +112,91 @@ const DataPage = ({ onBack }) => {
         calculateUsage();
     }, []);
 
+    // Helper: Blob to Base64
+    const blobToBase64 = (blob) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = reader.result;
+                resolve({
+                    __type: 'blob',
+                    data: base64,
+                    mime: blob.type
+                });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    };
+
+    // Helper: Base64 to Blob
+    const base64ToBlob = (base64, mime) => {
+        const arr = base64.split(',');
+        const bstr = atob(arr[1]); // Decode base64
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], { type: mime });
+    };
+
+    // Serialize: Data -> JSON-ready Object (Convert Blobs to Base64)
+    const serializeData = async (data) => {
+        if (data instanceof Blob) {
+            return await blobToBase64(data);
+        } else if (Array.isArray(data)) {
+            return Promise.all(data.map(item => serializeData(item)));
+        } else if (typeof data === 'object' && data !== null) {
+            const result = {};
+            for (const key in data) {
+                if (Object.prototype.hasOwnProperty.call(data, key)) {
+                    result[key] = await serializeData(data[key]);
+                }
+            }
+            return result;
+        }
+        return data; // Primitive types pass through
+    };
+
+    // Deserialize: JSON Object -> Data (Convert Base64 objects back to Blobs)
+    const deserializeData = (data) => {
+        if (Array.isArray(data)) {
+            return data.map(item => deserializeData(item));
+        } else if (typeof data === 'object' && data !== null) {
+            if (data.__type === 'blob') {
+                return base64ToBlob(data.data, data.mime);
+            }
+            const result = {};
+            for (const key in data) {
+                result[key] = deserializeData(data[key]);
+            }
+            return result;
+        }
+        return data;
+    };
+
     const handleExport = async () => {
         try {
-            // Manual simplified export
             const data = {};
             for (const table of db.tables) {
-                data[table.name] = await table.toArray();
+                const rawData = await table.toArray();
+                data[table.name] = await serializeData(rawData);
             }
-            const blobData = new Blob([JSON.stringify(data)], { type: 'application/json' });
+
+            // Format JSON with indentation for readability (optional, but nice)
+            const jsonString = JSON.stringify(data, null, 2);
+            const blobData = new Blob([jsonString], { type: 'application/json' });
             const url = URL.createObjectURL(blobData);
 
             const a = document.createElement('a');
             a.href = url;
             a.download = `hoshino_backup_${new Date().toISOString().slice(0, 10)}.json`;
             a.click();
+            URL.revokeObjectURL(url);
         } catch (e) {
             alert('导出失败: ' + e.message);
+            console.error('Export Error:', e);
         }
     };
 
@@ -135,29 +204,46 @@ const DataPage = ({ onBack }) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        if (!confirm('警告：导入将覆盖当前所有数据！是否继续？')) return;
+        if (!confirm('警告：导入将覆盖当前所有数据！建议先导出当前数据备份。是否继续？')) {
+            e.target.value = ''; // Reset input to allow re-selection of same file
+            return;
+        }
 
         setImporting(true);
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
-                const data = JSON.parse(event.target.result);
+                const jsonText = event.target.result;
+                const rawData = JSON.parse(jsonText);
+                const restoredData = deserializeData(rawData);
+
                 await db.transaction('rw', db.tables, async () => {
+                    // Smart Restoration: Only import tables that exist in current DB schema
+                    // This prevents errors if importing from a backup with unknown tables
                     for (const table of db.tables) {
-                        if (data[table.name]) {
+                        if (restoredData[table.name]) {
                             await table.clear();
-                            await table.bulkAdd(data[table.name]);
+                            await table.bulkAdd(restoredData[table.name]);
                         }
                     }
                 });
-                alert('数据恢复成功！');
+                alert('数据恢复成功！请刷新页面以加载新数据。');
                 setImporting(false);
+                window.location.reload(); // Auto-reload to apply changes safely
             } catch (err) {
-                alert('导入失败，文件格式可能错误');
+                console.error('Import Error:', err);
+                alert('导入失败：文件格式错误或数据损坏');
                 setImporting(false);
             }
         };
+        reader.onerror = () => {
+            alert('读取文件失败');
+            setImporting(false);
+        };
         reader.readAsText(file);
+
+        // Reset input value
+        e.target.value = '';
     };
 
     const [showDebug, setShowDebug] = useState(false);
@@ -186,7 +272,18 @@ const DataPage = ({ onBack }) => {
                             <div className="p-2 bg-gray-50 rounded text-[10px] text-gray-400 font-mono break-all leading-tight text-left">
                                 <div className="flex justify-between items-center mb-1 pb-1 border-b border-gray-200/50">
                                     <span className="font-bold">诊断日志</span>
-                                    <button onClick={calculateUsage} className="text-blue-500">刷新</button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(debugInfo);
+                                                alert('已复制到剪贴板');
+                                            }}
+                                            className="text-green-500"
+                                        >
+                                            复制
+                                        </button>
+                                        <button onClick={calculateUsage} className="text-blue-500">刷新</button>
+                                    </div>
                                 </div>
                                 {debugInfo.split('\n').map((line, i) => <div key={i}>{line}</div>)}
                             </div>

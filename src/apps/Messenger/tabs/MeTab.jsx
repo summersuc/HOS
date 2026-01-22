@@ -10,9 +10,58 @@ const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings, onOpenBeautify }) 
 
     const handleActivate = async (personaId) => {
         triggerHaptic();
-        await db.userPersonas.toCollection().modify({ isActive: false });
-        await db.userPersonas.update(personaId, { isActive: true });
+
+        // Override UI Pattern: Force show the new avatar immediately
+        // This prevents the "flash of old/empty content" while DB syncs
+        const targetPersona = personas.find(p => p.id === personaId);
+        if (targetPersona) {
+            // Determine the URL/Source to force display
+            let overrideSrc;
+            if (targetPersona.avatar instanceof Blob) {
+                overrideSrc = URL.createObjectURL(targetPersona.avatar);
+            } else {
+                overrideSrc = targetPersona.avatar;
+            }
+            setOverrideAvatar({ id: personaId, src: overrideSrc });
+        }
+
+        await db.transaction('rw', db.userPersonas, async () => {
+            await db.userPersonas.toCollection().modify({ isActive: false });
+            await db.userPersonas.update(personaId, { isActive: true });
+        });
     };
+
+    // Avatar Logic: Override > Reference > DB Source
+    const [overrideAvatar, setOverrideAvatar] = React.useState(null);
+
+    // Sync Effect: When DB catches up to our override, release the override
+    React.useEffect(() => {
+        if (overrideAvatar && activePersona?.id === overrideAvatar.id) {
+            // DB has synced to the active persona we clicked.
+            // We can now safely release the override and let DB take over.
+            // Small timeout to ensure image paint is effectively "swapped"
+            const timer = setTimeout(() => {
+                setOverrideAvatar(null);
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [activePersona?.id, overrideAvatar]);
+
+    // Cleanup Blob URLs from overrides to stop memory leaks
+    React.useEffect(() => {
+        return () => {
+            if (overrideAvatar?.src && overrideAvatar.src.startsWith('blob:')) {
+                URL.revokeObjectURL(overrideAvatar.src);
+            }
+        };
+    }, [overrideAvatar]);
+
+    // Determine what to display
+    const displayAvatar = overrideAvatar?.src || (
+        activePersona?.avatar instanceof Blob
+            ? URL.createObjectURL(activePersona.avatar)
+            : activePersona?.avatar
+    );
 
     return (
         <div className="h-full flex flex-col bg-[#F2F2F7] dark:bg-black">
@@ -27,8 +76,12 @@ const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings, onOpenBeautify }) 
                 {/* User Card */}
                 <div className="mx-4 mt-4 bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-sm">
                     <div className="flex items-center gap-4">
-                        <div className="w-[68px] h-[68px] rounded-full bg-gradient-to-br from-[#5B7FFF]/20 to-[#5B7FFF]/10 dark:from-[#5B7FFF]/30 dark:to-[#5B7FFF]/20 flex items-center justify-center text-[#5B7FFF] text-3xl font-bold shadow-inner">
-                            {activePersona?.userName?.[0] || 'U'}
+                        <div className="w-[68px] h-[68px] rounded-full bg-gradient-to-br from-[#5B7FFF]/20 to-[#5B7FFF]/10 dark:from-[#5B7FFF]/30 dark:to-[#5B7FFF]/20 flex items-center justify-center text-[#5B7FFF] text-3xl font-bold shadow-inner overflow-hidden">
+                            {displayAvatar ? (
+                                <img src={displayAvatar} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                                activePersona?.userName?.[0] || 'U'
+                            )}
                         </div>
                         <div className="flex-1">
                             <h2 className="text-[22px] font-bold text-gray-900 dark:text-white">{activePersona?.userName || '用户'}</h2>

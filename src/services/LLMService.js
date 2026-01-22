@@ -82,6 +82,7 @@ export const llmService = {
         try {
             const response = await fetch(url, {
                 method: 'POST',
+                keepalive: true, // PWA Optimization: Keep request alive in background
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${config.apiKey}`
@@ -153,8 +154,11 @@ export const llmService = {
                     .where('characterId').equals(parseInt(characterId) || characterId)
                     .filter(entry => entry.enabled !== false)
                     .toArray();
+
+                // Sort by priority (insertion order), descending or ascending logic if field exists
+                // Since schema might not have priority yet, we'll just join comfortably.
                 if (wbEntries.length > 0) {
-                    worldBookText = wbEntries.map(e => `[${e.title}]: ${e.content}`).join('\n');
+                    worldBookText = wbEntries.map(e => `[Info: ${e.title}]\n${e.content}`).join('\n\n');
                 }
             } catch (e) {
                 console.warn('WorldBook fetch failed:', e);
@@ -162,11 +166,18 @@ export const llmService = {
         }
 
         // 3. Part 1: Global Core
+        // Use passed userPersona if available
+        const userP = options.userPersona;
+        const userName = userP?.userName || 'User';
+        const userDesc = userP?.description || 'Unknown';
+
         const globalCore = `Identity: ${char.name}
 Persona: ${char.personality || char.description || 'Unknown'}
-User: User
+User: ${userName}
+User Info: ${userDesc}
 Relationship: ${char.relationship || 'Stranger'}
-World Book: ${worldBookText}`;
+World Book Info:
+${worldBookText}`;
 
         // Fetch Sticker List
         let stickerPrompt = '';
@@ -192,9 +203,13 @@ Time: ${timeStr}
 [Rules]
 1. OUTPUT FORMAT: ONLY Language/Text. NO actions (e.g. *hugs*). NO psychological descriptions (e.g. (thinking...)). 
 2. EXPRESSION: Use Text, Emojis, Kaomoji, and [Sticker] matching your Persona.
-3. REPLY LENGTH: Aim for ${String(replyCount).includes('-') ? replyCount.replace('-', ' to ') : replyCount} bubbles/sentences per turn. (Split thoughts with newlines).
+3. REPLY LENGTH & SPLITTING: 
+   - You MUST split your response into multiple bubbles/paragraphs.
+   - Separate each independent thought or bubble with a single NEWLINE (\n).
+   - Aim for ${String(replyCount).includes('-') ? replyCount.replace('-', ' to ') : replyCount} bubbles per turn.
+   - DO NOT bunch everything into one block. Use newlines aggressively to simulate real chatting.
 ${stickerPrompt}
-${noPunctuation ? '4. NO PUNCTUATION: Do NOT use any punctuation marks (like or any punctuation like , . ! ?). Use spaces to separate sentences instead. This is a unique style requirement. IMPORTANT: You SHOULD still use newlines (enters) to separate different paragraphs or thoughts for readability.\n' : ''}
+${noPunctuation ? '4. NO PUNCTUATION: Do NOT use any punctuation marks (like , . ! ?). Use spaces/newlines to separate sentences instead. This is a unique style requirement.\n' : ''}
 [Protocol]
 - [User sent Image: ...]: React to visual details.
 - [User sent Red Packet: ...]: React to money/luck.
@@ -206,7 +221,8 @@ ${noPunctuation ? '4. NO PUNCTUATION: Do NOT use any punctuation marks (like or 
 - SEND GIFT: [Gift: GiftName] (e.g. [Gift: 鲜花])
 
 [System]
-Never describe actions like *hands you a red packet*. INSTREAD, use the [RedPacket: ...] command.`;
+Never describe actions like *hands you a red packet*. INSTEAD, use the [RedPacket: ...] command.
+REMEMBER: Split bubbles with newlines!`;
 
         // 5. Fetch History
         let historyQuery = db.messengerMessages
@@ -236,6 +252,13 @@ Never describe actions like *hands you a red packet*. INSTREAD, use the [RedPack
                 if (msg.msgType === 'redpacket') content = `[User sent Red Packet: ${msg.metadata?.note}, Amount: ${msg.metadata?.amount}]`;
                 if (msg.msgType === 'transfer') content = `[User transferred money: ${msg.metadata?.amount}, Note: ${msg.metadata?.note}]`;
 
+                // Handle Revoked Messages
+                if (msg.msgType === 'revoked') {
+                    // Inform AI that a message was revoked, but hide content
+                    const who = msg.role === 'user' ? 'User' : 'Assistant';
+                    content = `[System: ${who} revoked a message]`;
+                }
+
                 messages.push({ role: msg.role, content: content });
             }
         });
@@ -257,6 +280,14 @@ Never describe actions like *hands you a red packet*. INSTREAD, use the [RedPack
     async sendMessageStream(messages, onDelta, onComplete, onError) {
         try {
             const text = await this.chatCompletion(messages);
+
+            // PWA Background Optimization: 
+            // If the tab is hidden, skip simulation to ensure notification triggers immediately.
+            if (document.visibilityState === 'hidden') {
+                onDelta(text);
+                onComplete(text);
+                return;
+            }
 
             // Simulate stream effect for better UX
             const chunk = 5; // chars per tick

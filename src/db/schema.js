@@ -56,7 +56,7 @@ db.version(4).stores({
     // 额外字段: content
 
     // 用户人设 (支持多套)
-    userPersonas: '++id, name, userName, isActive, createdAt',
+    userPersonas: '++id, name, userName, avatar, isActive, createdAt',
     // 额外字段: description
 
     // Prompt 预设模板
@@ -90,6 +90,14 @@ db.version(8).stores({
 // 数据库版本 9: 增加表情包 (Stickers)
 db.version(9).stores({
     stickers: '++id, name, url, createdAt'
+});
+
+// 数据库版本 10: 聊天美化 (Wallpapers & Status)
+db.version(10).stores({
+    // Store wallpapers individually per conversation (blob or url)
+    conversations: '++id, characterId, userPersonaId, title, wallpaper, historyLimit, replyCount, noPunctuation, updatedAt',
+    // Add status field to characters
+    characters: '++id, name, avatar, description, personality, relationship, currentStatus, isFavorite, createdAt'
 });
 
 // Database Auto-Repair Logic (PWA Corruption Handle)

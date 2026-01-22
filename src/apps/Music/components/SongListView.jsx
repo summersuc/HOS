@@ -56,7 +56,7 @@ const SongListView = ({ playlistId, onBack, onPlaySong }) => {
                     </div>
                     <div className="flex-1">
                         <div className="text-base font-bold text-gray-900 dark:text-white flex items-center">
-                            Play All <span className="text-xs font-normal text-gray-500 ml-1">({songs.length})</span>
+                            播放全部 <span className="text-xs font-normal text-gray-500 ml-1">({songs.length})</span>
                         </div>
                     </div>
                 </div>

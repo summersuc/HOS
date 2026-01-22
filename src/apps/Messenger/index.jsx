@@ -20,6 +20,7 @@ import PresetsManager from './pages/PresetsManager';
 import ContactPicker from './components/ContactPicker';
 import APISettings from '../Settings/pages/APIPage';
 import BeautifyEditor from './pages/BeautifyEditor';
+import ChatSettingsPage from './pages/ChatSettingsPage';
 
 const TABS = [
     { id: 'chat', label: '消息', icon: MessageSquare },
@@ -213,67 +214,87 @@ const Messenger = ({ onClose }) => {
                 )}
             </AnimatePresence>
 
-            {/* 详情页层 */}
+
+            {/* Render All Pages (Stack + Current) Unified */}
+
+
             <AnimatePresence>
-                {currentPage?.type === 'chat' && (
-                    <ChatDetail
-                        key={`chat-${currentPage.id}`}
-                        conversationId={currentPage.id}
-                        characterId={currentPage.characterId}
-                        onBack={closePage}
-                        onProfile={(charId) => openPage({ type: 'profile', id: charId }, true)}
-                    />
-                )}
-                {currentPage?.type === 'profile' && (
-                    <CharacterProfile
-                        key={`profile-${currentPage.id}`}
-                        characterId={currentPage.id}
-                        onBack={closePage}
-                        onEdit={() => openPage({ type: 'character', id: currentPage.id }, true)}
-                        onMessage={async () => {
-                            // Find existing conversation
-                            const existing = await db.conversations.where({ characterId: currentPage.id }).first();
-                            if (existing) {
-                                openPage({ type: 'chat', id: existing.id, characterId: currentPage.id }, true);
-                            } else {
-                                // Create new
-                                const char = await db.characters.get(currentPage.id);
-                                const convId = await db.conversations.add({ characterId: currentPage.id, title: char.name, updatedAt: Date.now() });
-                                openPage({ type: 'chat', id: convId, characterId: currentPage.id }, true);
-                            }
-                        }}
-                    />
-                )}
-                {currentPage?.type === 'character' && (
-                    <CharacterEditor
-                        key={`char-${currentPage.id}`}
-                        characterId={currentPage.id}
-                        onBack={closePage}
-                        onStartChat={(convId, charId) => {
-                            closeAllPages();
-                            setTimeout(() => openPage({ type: 'chat', id: convId, characterId: charId }, false), 50);
-                        }}
-                    />
-                )}
-                {currentPage?.type === 'worldbook' && (
-                    <WorldBookManager key="worldbook" onBack={closePage} />
-                )}
-                {currentPage?.type === 'presets' && (
-                    <PresetsManager key="presets" onBack={closePage} />
-                )}
-                {currentPage?.type === 'persona' && (
-                    <PersonaEditor
-                        key={`persona-${currentPage.id}`}
-                        personaId={currentPage.id}
-                        onBack={closePage}
-                    />
-                )}
-                {currentPage?.type === 'settings' && (
-                    <APISettings key="settings" onBack={closePage} />
-                )}
-                {currentPage?.type === 'beautify' && (
-                    <BeautifyEditor key="beautify" onBack={closePage} />
-                )}
+                {[...pageStack, currentPage].filter(Boolean).map((page, index) => {
+                    const pageKey = `${page.type}-${page.id || page.conversationId || 'new'}-${index}`;
+
+                    if (page.type === 'chat') {
+                        // Ensure conversationId is valid
+                        const cId = page.id ?? page.conversationId;
+                        return (
+                            <ChatDetail
+                                key={pageKey}
+                                conversationId={cId}
+                                characterId={page.characterId}
+                                onBack={closePage}
+                                onProfile={(charId) => openPage({ type: 'profile', id: charId }, true)}
+                                onSettings={(convId, charId) => openPage({ type: 'chatSettings', conversationId: convId, characterId: charId }, true)}
+                            />
+                        );
+                    }
+                    if (page.type === 'chatSettings') {
+                        return (
+                            <ChatSettingsPage
+                                key={pageKey}
+                                conversationId={page.conversationId}
+                                characterId={page.characterId}
+                                onBack={closePage}
+                                onProfile={(charId) => openPage({ type: 'profile', id: charId }, true)}
+                            />
+                        );
+                    }
+                    if (page.type === 'profile') {
+                        return (
+                            <CharacterProfile
+                                key={pageKey}
+                                characterId={page.id}
+                                onBack={closePage}
+                                onEdit={() => openPage({ type: 'character', id: page.id }, true)}
+                                onMessage={async () => {
+                                    const existing = await db.conversations.where({ characterId: page.id }).first();
+                                    if (existing) {
+                                        openPage({ type: 'chat', id: existing.id, characterId: page.id }, true);
+                                    } else {
+                                        const char = await db.characters.get(page.id);
+                                        const convId = await db.conversations.add({ characterId: page.id, title: char.name, updatedAt: Date.now() });
+                                        openPage({ type: 'chat', id: convId, characterId: page.id }, true);
+                                    }
+                                }}
+                            />
+                        );
+                    }
+                    if (page.type === 'character') {
+                        return (
+                            <CharacterEditor
+                                key={pageKey}
+                                characterId={page.id}
+                                onBack={closePage}
+                                onStartChat={(convId, charId) => {
+                                    closeAllPages();
+                                    setTimeout(() => openPage({ type: 'chat', id: convId, characterId: charId }, false), 50);
+                                }}
+                            />
+                        );
+                    }
+                    if (page.type === 'worldbook') return <WorldBookManager key={pageKey} onBack={closePage} />;
+                    if (page.type === 'presets') return <PresetsManager key={pageKey} onBack={closePage} />;
+                    if (page.type === 'persona') {
+                        return (
+                            <PersonaEditor
+                                key={pageKey}
+                                personaId={page.id}
+                                onBack={closePage}
+                            />
+                        );
+                    }
+                    if (page.type === 'settings') return <APISettings key={pageKey} onBack={closePage} />;
+                    if (page.type === 'beautify') return <BeautifyEditor key={pageKey} onBack={closePage} />;
+                    return null;
+                })}
             </AnimatePresence>
         </div>
     );

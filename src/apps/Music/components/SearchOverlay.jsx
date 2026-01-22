@@ -82,7 +82,7 @@ const SearchOverlay = ({
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search..."
+                            placeholder="搜索..."
                             className="bg-transparent w-full outline-none text-sm dark:text-white"
                         />
                     </form>
@@ -114,7 +114,7 @@ const SearchOverlay = ({
             {/* Results List */}
             <div className="flex-1 overflow-y-auto pb-32 pt-2 px-4 space-y-2">
                 {loading && searchResults.length === 0 && (
-                    <div className="flex justify-center py-10 opacity-50 text-sm">Searching...</div>
+                    <div className="flex justify-center py-10 opacity-50 text-sm">正在搜索...</div>
                 )}
 
                 {error && (
@@ -124,13 +124,13 @@ const SearchOverlay = ({
                             onClick={() => onSearch(searchType, false)}
                             className="px-4 py-1.5 bg-red-500 text-white rounded-full text-xs font-bold shadow-lg shadow-red-500/20"
                         >
-                            Retry
+                            重试
                         </button>
                     </div>
                 )}
 
                 {!loading && !error && searchResults.length === 0 && searchQuery && (
-                    <div className="flex justify-center py-10 opacity-50 text-sm">No results found</div>
+                    <div className="flex justify-center py-10 opacity-50 text-sm">暂无搜索结果</div>
                 )}
 
                 {searchResults.map((item, index) => {
@@ -145,13 +145,13 @@ const SearchOverlay = ({
                     const subTitle = isSong
                         ? `${item.ar?.[0]?.name} · ${item.al?.name}`
                         : isPlaylist
-                            ? `${item.trackCount} tracks · ${item.creator?.nickname}`
+                            ? `${item.trackCount} 首歌曲 · ${item.creator?.nickname}`
                             : isArtist
-                                ? "Artist"
+                                ? "歌手"
                                 : isMV
                                     ? `MV · ${item.artistName}`
                                     : isDJRes
-                                        ? `Podcast · ${item.dj?.nickname}`
+                                        ? `播客 · ${item.dj?.nickname}`
                                         : item.artist?.name || "";
 
                     return (
@@ -180,7 +180,7 @@ const SearchOverlay = ({
                             disabled={loadingMore}
                             className="px-6 py-2 bg-gray-200 dark:bg-white/10 rounded-full text-xs font-bold text-gray-600 dark:text-gray-400 active:scale-95 disabled:opacity-50 transition-all"
                         >
-                            {loadingMore ? "Loading..." : "Load More"}
+                            {loadingMore ? "加载中..." : "加载更多"}
                         </button>
                     </div>
                 )}

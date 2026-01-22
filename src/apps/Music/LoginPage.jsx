@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 const LoginPage = ({ onLoginSuccess }) => {
     const [qrImg, setQrImg] = useState('');
-    const [status, setStatus] = useState('Loading QR Code...');
+    const [status, setStatus] = useState('正在加载二维码...');
     const [qrKey, setQrKey] = useState('');
     const checkTimerRef = useRef(null);
 
@@ -24,12 +24,12 @@ const LoginPage = ({ onLoginSuccess }) => {
             // Get Image
             const imgData = await MusicService.getQrCreate(key);
             setQrImg(imgData);
-            setStatus('Please scan with Netease Cloud Music App');
+            setStatus('请使用网易云音乐APP扫码登录');
 
             // Start Polling
             startCheckingInfo(key);
         } catch (e) {
-            setStatus('Error initializing login. Please retry.');
+            setStatus('初始化失败，请重试');
         }
     };
 
@@ -40,13 +40,13 @@ const LoginPage = ({ onLoginSuccess }) => {
             const res = await MusicService.checkQrStatus(key);
             // 800: Expired, 801: Waiting, 802: Scanned, 803: Success
             if (res.code === 800) {
-                setStatus('QR Code Expired. Refreshing...');
+                setStatus('二维码已过期，正在刷新...');
                 initLogin();
             } else if (res.code === 802) {
-                setStatus('Scanned! Please confirm on your phone.');
+                setStatus('扫描成功！请在手机上确认登录');
             } else if (res.code === 803) {
                 clearInterval(checkTimerRef.current);
-                setStatus('Login Successful! Redirecting...');
+                setStatus('登录成功！正在跳转...');
                 onLoginSuccess(res.cookie);
             }
         }, 3000);
@@ -55,9 +55,9 @@ const LoginPage = ({ onLoginSuccess }) => {
     return (
         <div className="flex flex-col items-center justify-center h-full space-y-8 bg-gradient-to-br from-red-500/5 to-purple-500/5">
             <div className="text-center space-y-2">
-                <h3 className="text-2xl font-bold dark:text-white">Login to Music</h3>
+                <h3 className="text-2xl font-bold dark:text-white">扫码登录</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 max-w-[240px] mx-auto opacity-80">
-                    Open Netease Cloud Music App on your phone and scan the QR code to sync your library.
+                    请打开手机网易云音乐APP 扫描下方二维码以同步你的歌单
                 </p>
             </div>
 
@@ -77,7 +77,7 @@ const LoginPage = ({ onLoginSuccess }) => {
                     <img src={qrImg} alt="Login QR Code" className="w-56 h-56 rounded-2xl shadow-inner bg-white p-2" />
                 ) : (
                     <div className="w-56 h-56 bg-gray-200/20 rounded-2xl animate-pulse flex items-center justify-center">
-                        <span className="text-xs font-mono opacity-50">Generating Key...</span>
+                        <span className="text-xs font-mono opacity-50">正在生成...</span>
                     </div>
                 )}
             </motion.div>
@@ -86,13 +86,14 @@ const LoginPage = ({ onLoginSuccess }) => {
                 key={status}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`px-6 py-2 rounded-full text-sm font-medium backdrop-blur-md transition-colors duration-300 ${status.includes('Success')
+                className={`px-6 py-2 rounded-full text-sm font-medium backdrop-blur-md transition-colors duration-300 ${status.includes('成功')
                     ? 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/20'
                     : 'bg-white/50 dark:bg-white/10 text-gray-600 dark:text-gray-300 border border-white/20'
                     }`}
             >
                 {status}
             </motion.div>
+
         </div>
     );
 };

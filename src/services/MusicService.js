@@ -2,7 +2,8 @@
  * MusicService
  * Handles communication with the NeteaseCloudMusicApi via Vite Proxy
  */
-const API_BASE = '/music-api';
+// Use environment variable for API URL in production, fallback to local proxy for dev
+const API_BASE = import.meta.env.VITE_MUSIC_API || '/music-api';
 
 export const MusicService = {
     async request(endpoint, options = {}, retries = 1) {
@@ -60,19 +61,19 @@ export const MusicService = {
 
     // 2. Get QR Key
     async getQrKey() {
-        const data = await this.request('/login/qr/key');
+        const data = await this.request('/login/qr/key?noCookie=true');
         return data?.data?.unikey;
     },
 
     // 3. Create QR Code Image
     async getQrCreate(key) {
-        const data = await this.request(`/login/qr/create?key=${key}&qrimg=true`);
+        const data = await this.request(`/login/qr/create?key=${key}&qrimg=true&noCookie=true`);
         return data?.data?.qrimg;
     },
 
     // 4. Check QR Status
     async checkQrStatus(key) {
-        return this.request(`/login/qr/check?key=${key}`);
+        return this.request(`/login/qr/check?key=${key}&noCookie=true`);
     },
 
     // --- Core Music Features ---

@@ -15,7 +15,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 const MusicApp = ({ onClose }) => {
     // Auth & Data State
     const [profile, setProfile] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
 
     // Toast
     const { showToast, ToastComponent } = useToast();
@@ -50,12 +49,10 @@ const MusicApp = ({ onClose }) => {
     }, []);
 
     const checkLoginStatus = async () => {
-        setIsLoading(true);
         const res = await MusicService.checkLogin();
         if (res?.data?.profile) {
             setProfile(res.data.profile);
         }
-        setIsLoading(false);
     };
 
     const handleLoginSuccess = () => {
@@ -81,23 +78,15 @@ const MusicApp = ({ onClose }) => {
         }
     };
 
-    // Next / Prev Handlers
+    // Next / Prev Handlers (Keep compatible with both)
     const handleNext = async () => {
         const nextTrack = playNextTrack();
-        if (nextTrack) {
-            const res = await MusicService.getSongUrl(nextTrack.id);
-            const url = res?.data?.[0]?.url;
-            if (url) playTrack(nextTrack, url);
-        }
+        if (nextTrack) handlePlaySong(nextTrack);
     };
 
     const handlePrev = async () => {
         const prevTrack = playPrevTrack();
-        if (prevTrack) {
-            const res = await MusicService.getSongUrl(prevTrack.id);
-            const url = res?.data?.[0]?.url;
-            if (url) playTrack(prevTrack, url);
-        }
+        if (prevTrack) handlePlaySong(prevTrack);
     };
 
     // Search Logic (for SearchOverlay)
@@ -114,9 +103,6 @@ const MusicApp = ({ onClose }) => {
     };
 
     const handleSearch = async (typeOverride, isLoadMore = false) => {
-        const typeToUse = typeOverride || searchType;
-        const currentOffset = isLoadMore ? searchOffset + SEARCH_LIMIT : 0;
-
         if (!searchQuery.trim()) return;
 
         if (isLoadMore) setSearchLoadingMore(true);
@@ -124,6 +110,9 @@ const MusicApp = ({ onClose }) => {
         setSearchError(null);
 
         try {
+            // --- REGULAR NETEASE SEARCH LOGIC ---
+            const typeToUse = typeOverride || searchType;
+            const currentOffset = isLoadMore ? searchOffset + SEARCH_LIMIT : 0;
             const res = await MusicService.search(searchQuery, SEARCH_LIMIT, currentOffset, typeToUse);
             if (res?.error) {
                 setSearchError(res.message || "Network error");
@@ -217,20 +206,17 @@ const MusicApp = ({ onClose }) => {
         <>
             <IOSPage
                 title={
-                    view === 'discovery' ? "Discovery" :
-                        view === 'playlists' ? "Mine" :
-                            "Playlist"
+                    !profile ? "网易云音乐" :
+                        view === 'discovery' ? "发现" :
+                            view === 'playlists' ? "我的" :
+                                "歌单"
                 }
                 onBack={view === 'songs' ? () => setView('playlists') : onClose}
                 enableEnterAnimation={false}
                 showBackButton={false}
             >
                 <div className="h-full bg-[#f2f2f7] dark:bg-black flex flex-col relative overflow-hidden text-gray-900 dark:text-white font-sans">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center flex-1">
-                            <span className="text-sm opacity-50 font-medium animate-pulse">Loading Netease...</span>
-                        </div>
-                    ) : !profile ? (
+                    {!profile ? (
                         <LoginPage onLoginSuccess={handleLoginSuccess} />
                     ) : (
                         <>
@@ -295,7 +281,7 @@ const MusicApp = ({ onClose }) => {
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${view === 'discovery' ? 'bg-red-500/10' : ''}`}>
                                             <span className="text-xl">◎</span>
                                         </div>
-                                        <span className="text-[10px] font-medium">Discovery</span>
+                                        <span className="text-[10px] font-medium">发现</span>
                                     </button>
                                     <button
                                         onClick={() => setView('playlists')}
@@ -304,7 +290,7 @@ const MusicApp = ({ onClose }) => {
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${view === 'playlists' ? 'bg-red-500/10' : ''}`}>
                                             <span className="text-xl">♫</span>
                                         </div>
-                                        <span className="text-[10px] font-medium">Mine</span>
+                                        <span className="text-[10px] font-medium">我的</span>
                                     </button>
                                 </div>
                             )}

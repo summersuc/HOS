@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import basicSsl from '@vitejs/plugin-basic-ssl'
+// import basicSsl from '@vitejs/plugin-basic-ssl'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -11,7 +11,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(), // 保留你加的 tailwind
-    basicSsl(), // 🔒 启用本地 HTTPS 证书
+    // basicSsl(), // 🔒 启用本地 HTTPS 证书
 
     // 👇 把这个 PWA 插件加回来，手机才能识别它是个 App
     VitePWA({

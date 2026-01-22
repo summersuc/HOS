@@ -3,9 +3,11 @@ import IOSPage from '../../../components/AppWindow/IOSPage';
 import { useTheme } from '../../../context/ThemeContext';
 
 const FontPage = ({ onBack }) => {
-    const { currentFont, applyFont, savedFonts, addSavedFont, deleteSavedFont } = useTheme();
+    const { currentFont, applyFont, savedFonts, addSavedFont, deleteSavedFont, fontSize, setFontSize, saveFontSize } = useTheme();
     const [customUrl, setCustomUrl] = useState('');
     const [importName, setImportName] = useState(''); // Name for saving
+    const [customCode, setCustomCode] = useState('');
+    const [familyName, setFamilyName] = useState('');
 
     const presetFonts = [
         { name: 'System Default', value: 'Inter, system-ui, sans-serif' },
@@ -22,32 +24,61 @@ const FontPage = ({ onBack }) => {
         ...(savedFonts || []).map(f => ({
             id: f.id,
             name: f.name,
-            value: "'CustomSysFont', sans-serif", // Shared family name
+            value: f.type === 'code' ? `"${f.familyName}", sans-serif` : "'CustomSysFont', sans-serif",
             source: f.source,
             type: f.type,
+            code: f.code,
+            familyName: f.familyName,
             isSaved: true
         }))
     ];
+
+    const autoExtractFamily = (code) => {
+        if (!code) return;
+        // Search for font-family: "Name" or font-family: Name
+        // Updated regex to be more robust across multi-lines
+        const regex = /font-family\s*:\s*["']?([^"';\r\n{]+)["']?/i;
+        const match = code.match(regex);
+        if (match && match[1]) {
+            const detected = match[1].trim();
+            // Basic cleanup: remove common fallbacks like , sans-serif
+            const primaryName = detected.split(',')[0].replace(/["']/g, '').trim();
+            setFamilyName(primaryName);
+            // Also try to guess a font name if importName is empty
+            if (!importName) setImportName(primaryName);
+        }
+    };
 
     const handleApplyAndSave = async (source, type) => {
         if (!source) return;
         const nameToSave = importName.trim() || `Custom Font ${savedFonts.length + 1}`;
 
         // 1. Save to DB
-        await addSavedFont(nameToSave, source, type);
+        const fontToSave = {
+            name: nameToSave,
+            source: source,
+            type: type,
+            code: type === 'code' ? source : undefined,
+            familyName: type === 'code' ? familyName : undefined
+        };
+        await addSavedFont(fontToSave);
 
         // 2. Apply immediately
         const newFont = {
             name: nameToSave,
-            value: "'CustomSysFont', sans-serif",
+            value: type === 'code' ? `"${familyName}", sans-serif` : "'CustomSysFont', sans-serif",
             source: source,
-            type: type
+            type: type,
+            code: type === 'code' ? source : undefined,
+            familyName: type === 'code' ? familyName : undefined
         };
         applyFont(newFont);
 
         alert(`已保存并应用字体: ${nameToSave}`);
         setImportName('');
         setCustomUrl('');
+        setCustomCode('');
+        setFamilyName('');
     };
 
     const handleUrlSubmit = (e) => {
@@ -83,7 +114,7 @@ const FontPage = ({ onBack }) => {
                 {/* Current Font Preview */}
                 <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-6 shadow-sm text-center">
                     <div className="text-4xl font-bold dark:text-white mb-2" style={{ fontFamily: currentFont.value }}>
-                        Hoshino OS
+                        直到幸福触手可及
                     </div>
                     <p className="text-gray-500 text-sm">当前: {currentFont.name}</p>
                 </div>
@@ -121,6 +152,30 @@ const FontPage = ({ onBack }) => {
                     </div>
                 </div>
 
+                {/* Font Size Slider */}
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-5 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-semibold dark:text-white">全局字号</h3>
+                        <span className="text-blue-500 font-bold">{fontSize}px</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <span className="text-xs text-gray-400">A</span>
+                        <input
+                            type="range"
+                            min="12"
+                            max="24"
+                            step="1"
+                            value={fontSize}
+                            onChange={(e) => setFontSize(parseInt(e.target.value))}
+                            onMouseUp={() => saveFontSize(fontSize)} // Save on release
+                            onTouchEnd={() => saveFontSize(fontSize)}
+                            className="flex-1 accent-blue-500 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-lg text-gray-900 dark:text-white">A</span>
+                    </div>
+                    <p className="text-xs text-gray-400">调整后将实时应用到所有页面。</p>
+                </div>
+
                 {/* Import Area */}
                 <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-5 shadow-sm space-y-4">
                     <h3 className="font-semibold dark:text-white">导入新字体</h3>
@@ -130,7 +185,7 @@ const FontPage = ({ onBack }) => {
                         <label className="text-xs text-gray-400 mb-1 block">字体名称 (选填)</label>
                         <input
                             type="text"
-                            placeholder="例如: 我的方正圆体"
+                            placeholder="给字体起个名字 (e.g. 优雅宋体)"
                             className="w-full bg-gray-100 dark:bg-black rounded-xl px-3 py-2.5 text-sm outline-none dark:text-white"
                             value={importName}
                             onChange={e => setImportName(e.target.value)}
@@ -160,9 +215,46 @@ const FontPage = ({ onBack }) => {
                         <div className="h-px bg-gray-100 dark:bg-gray-800 flex-1"></div>
                     </div>
 
-                    {/* Method 2: Local File */}
+                    {/* Method 2: Code Injection (Swapped to B) */}
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block">方式 B: 本地文件 (ttf/otf/woff)</label>
+                        <label className="text-xs text-gray-400 mb-1 block">方式 B: 代码注入 (HTML/CSS)</label>
+                        <div className="space-y-3">
+                            <input
+                                type="text"
+                                placeholder="字体家族名称 自动注入 禁止修改"
+                                className="w-full bg-gray-100 dark:bg-black rounded-xl px-3 py-2.5 text-sm outline-none dark:text-white"
+                                value={familyName}
+                                onChange={e => setFamilyName(e.target.value)}
+                            />
+                            <textarea
+                                placeholder='示例: <link rel="stylesheet" href="..." /> <style>body{ font-family: "..." }</style>'
+                                className="w-full h-32 bg-gray-100 dark:bg-black rounded-xl px-3 py-2.5 text-sm outline-none dark:text-white resize-none"
+                                value={customCode}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setCustomCode(val);
+                                    autoExtractFamily(val);
+                                }}
+                            />
+                            <button
+                                onClick={() => handleApplyAndSave(customCode, 'code')}
+                                disabled={!customCode || !familyName}
+                                className="w-full bg-blue-500 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-semibold active:scale-95 transition-transform"
+                            >
+                                注入并应用
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs text-gray-300">
+                        <div className="h-px bg-gray-100 dark:bg-gray-800 flex-1"></div>
+                        OR
+                        <div className="h-px bg-gray-100 dark:bg-gray-800 flex-1"></div>
+                    </div>
+
+                    {/* Method 3: Local File (Swapped to C) */}
+                    <div className="pb-4">
+                        <label className="text-xs text-gray-400 mb-1 block">方式 C: 本地文件 (ttf/otf/woff)</label>
                         <label className="flex w-full bg-gray-100 dark:bg-black rounded-xl px-4 py-3 items-center gap-3 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-900 transition-colors">
                             <div className="bg-white dark:bg-[#2C2C2E] p-2 rounded-lg text-gray-500">
                                 📁

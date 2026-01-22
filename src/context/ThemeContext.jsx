@@ -31,60 +31,97 @@ const ThemeContext = createContext();
 export const ThemeProvider = ({ children }) => {
     // 1. Fonts
     const [currentFont, setCurrentFont] = useState({ name: 'System', value: 'ui-sans-serif, system-ui, sans-serif' });
+    const [fontSize, setFontSizeState] = useState(16);
 
-    // Load font from DB on mount
+    // Initial Load Logic
     useEffect(() => {
-        const loadFont = async () => {
-            // 1. LocalStorage (Instant)
-            try {
-                const local = localStorage.getItem('hos_system_font');
-                if (local) {
-                    const parsed = JSON.parse(local);
-                    applyFont(parsed, false); // false = don't double save
-                }
-            } catch (e) { console.warn('Local font load failed', e) }
+        const loadSettings = async () => {
+            // Font Config
+            const localFont = localStorage.getItem('hos_system_font');
+            if (localFont) applyFont(JSON.parse(localFont), false);
 
-            // 2. DB (Lazy Sync)
-            try {
-                const fontConfig = await getSetting('systemFont');
-                if (fontConfig) {
-                    applyFont(fontConfig, false);
+            // Font Size
+            const localSize = localStorage.getItem('hos_font_size');
+            if (localSize) {
+                const s = parseInt(localSize);
+                setFontSizeState(s);
+                document.documentElement.style.fontSize = `${s}px`;
+            } else {
+                // Try DB
+                const dbSize = await getSetting('global_font_size');
+                if (dbSize) {
+                    setFontSizeState(dbSize);
+                    document.documentElement.style.fontSize = `${dbSize}px`;
                 }
-            } catch (e) { console.warn('DB font load failed', e) }
+            }
         };
-        loadFont();
+        loadSettings();
     }, []);
+
+    const setFontSize = (size) => {
+        setFontSizeState(size);
+        document.documentElement.style.fontSize = `${size}px`;
+    }
+
+    const saveFontSize = (size) => {
+        localStorage.setItem('hos_font_size', size);
+        setSetting('global_font_size', size);
+    };
 
     const applyFont = (fontConfig, save = true) => {
         setCurrentFont(fontConfig);
         if (save) setSetting('systemFont', fontConfig);
 
-        // Normalize source (legacy 'url' or new 'source')
         const fontSource = fontConfig.source || fontConfig.url || fontConfig.value;
         const isCustom = fontConfig.type === 'web' || fontConfig.type === 'local';
+        const isCode = fontConfig.type === 'code';
+
+        // Clear and cleanup
+        const oldStyle = document.getElementById('dynamic-font-style');
+        if (oldStyle) oldStyle.remove();
+
+        let container = document.getElementById('hos-font-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'hos-font-container';
+            container.style.display = 'none';
+            document.head.appendChild(container);
+        }
+        container.innerHTML = ''; // Full cleanup of previous injections
 
         if (isCustom) {
-            let styleTag = document.getElementById('dynamic-font-style');
-            if (!styleTag) {
-                styleTag = document.createElement('style');
-                styleTag.id = 'dynamic-font-style';
-                document.head.appendChild(styleTag);
-            }
+            const styleTag = document.createElement('style');
+            styleTag.id = 'dynamic-font-style';
+            const familyName = 'CustomSysFont';
+            const srcValue = fontSource.startsWith('data:') ? `url('${fontSource}')` : `url('${fontSource}')`;
 
-            // Generate a unique family name if it's saved, or generic if temporary
-            // Actually, for simplicity, let's just use "CustomSysFont" for now to always override.
-            // But if we want to switch between custom fonts effectively, "CustomSysFont" is fine as long as we update src.
-
-            console.log('Injecting font source:', fontSource);
             styleTag.textContent = `
                 @font-face {
-                    font-family: 'CustomSysFont';
-                    src: url('${fontSource}') format('truetype');
+                    font-family: '${familyName}';
+                    src: ${srcValue} format('truetype');
                     font-weight: normal;
                     font-style: normal;
+                    font-display: swap; 
                 }
             `;
+            container.appendChild(styleTag);
             document.documentElement.style.setProperty('--system-font', "'CustomSysFont', sans-serif");
+        } else if (isCode) {
+            // Raw Injection Mode
+            const codeContent = fontConfig.code || fontSource;
+
+            // Heuristic: If there are no HTML tags, assume it's raw CSS and wrap it
+            if (!codeContent.trim().startsWith('<') && !codeContent.includes('</')) {
+                const styleTag = document.createElement('style');
+                styleTag.textContent = codeContent;
+                container.appendChild(styleTag);
+            } else {
+                container.innerHTML = codeContent;
+            }
+
+            if (fontConfig.familyName) {
+                document.documentElement.style.setProperty('--system-font', `"${fontConfig.familyName}", sans-serif`);
+            }
         } else {
             // Standard Preset
             document.documentElement.style.setProperty('--system-font', fontConfig.value);
@@ -97,12 +134,12 @@ export const ThemeProvider = ({ children }) => {
         db.fonts.toArray().then(setSavedFonts).catch(e => console.warn('Fonts DB failed', e));
     }, []);
 
-    const addSavedFont = async (name, source, type = 'web') => {
-        const font = { name, source, type };
+    const addSavedFont = async (fontObj) => {
+        // Now accepts an object with { name, source, type, code, familyName }
         // Optimistic UI update
-        setSavedFonts(prev => [...prev, font]);
+        setSavedFonts(prev => [...prev, fontObj]);
         try {
-            await db.fonts.add(font);
+            await db.fonts.add(fontObj);
         } catch (e) { console.warn('Add Font DB failed', e) }
     };
 
@@ -156,6 +193,7 @@ export const ThemeProvider = ({ children }) => {
             savedFonts,
             addSavedFont,
             deleteSavedFont,
+            fontSize, setFontSize, saveFontSize,
             widgets,
             addWidget,
             removeWidget,
