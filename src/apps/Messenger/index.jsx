@@ -29,12 +29,21 @@ const TABS = [
     { id: 'me', label: '我', icon: User },
 ];
 
+import { storageService } from '../../services/StorageService';
+
 const Messenger = ({ onClose }) => {
     const [activeTab, setActiveTab] = useState('chat');
     const [currentPage, setCurrentPage] = useState(null);
     const [pageStack, setPageStack] = useState([]);
     const [showNewMenu, setShowNewMenu] = useState(false);
     const [pickerMode, setPickerMode] = useState(null);
+
+    // Phase 2: Preload Avatars on Startup
+    React.useEffect(() => {
+        storageService.preloadTable('userPersonas');
+        storageService.preloadTable('characters');
+        storageService.preloadTable('chatWallpapers', 'data');
+    }, []);
 
     const openPage = (page, pushToStack = true) => {
         if (pushToStack && currentPage) {
@@ -127,28 +136,32 @@ const Messenger = ({ onClose }) => {
                         </AnimatePresence>
                     </div>
 
-                    <div className="shrink-0 bg-[#F2F2F7]/95 dark:bg-[#1C1C1E]/95 backdrop-blur-2xl border-t border-gray-200/50 dark:border-white/5 pb-[var(--sab)]">
-                        <div className="flex justify-around items-center h-[52px]">
-                            {TABS.map(tab => {
-                                const isActive = activeTab === tab.id;
-                                const Icon = tab.icon;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => handleTabChange(tab.id)}
-                                        className={`flex flex-col items-center justify-center gap-1 px-5 py-1.5 transition-all duration-200 ${isActive ? '' : 'opacity-50'}`}
-                                    >
-                                        <Icon
-                                            size={24}
-                                            strokeWidth={isActive ? 2.5 : 1.8}
-                                            className={isActive ? 'text-[#5B7FFF]' : 'text-gray-500 dark:text-gray-400'}
-                                        />
-                                        <span className={`text-[10px] font-semibold ${isActive ? 'text-[#5B7FFF]' : 'text-gray-400'}`}>
-                                            {tab.label}
-                                        </span>
-                                    </button>
-                                );
-                            })}
+                    <div className="shrink-0 px-4 pb-[var(--sab)] pt-2">
+                        <div className="bg-white/50 dark:bg-[#1C1C1E]/50 backdrop-blur-2xl rounded-full border border-gray-200/30 dark:border-white/10 shadow-lg">
+                            <div className="flex justify-around items-center h-[50px]">
+                                {TABS.map(tab => {
+                                    const isActive = activeTab === tab.id;
+                                    const Icon = tab.icon;
+                                    return (
+                                        <motion.button
+                                            key={tab.id}
+                                            onClick={() => handleTabChange(tab.id)}
+                                            whileTap={{ scale: 0.85 }}
+                                            className={`flex flex-col items-center justify-center gap-0.5 px-5 py-1.5 transition-all duration-200 ${isActive ? '' : 'opacity-40'}`}
+                                        >
+                                            <Icon
+                                                size={22}
+                                                strokeWidth={2}
+                                                fill={isActive ? 'currentColor' : 'none'}
+                                                className={isActive ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}
+                                            />
+                                            <span className={`text-[10px] font-medium ${isActive ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400'}`}>
+                                                {tab.label}
+                                            </span>
+                                        </motion.button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>

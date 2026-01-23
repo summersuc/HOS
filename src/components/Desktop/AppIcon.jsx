@@ -23,6 +23,7 @@ const AppIcon = ({ app, inDock = false, onClick }) => {
         <div className="flex flex-col items-center gap-1 group w-[60px] sm:w-[70px]">
             <motion.button
                 whileTap={{ scale: 0.9 }}
+                data-app-id={app.id}
                 className={`relative aspect-square w-full rounded-2xl overflow-hidden shadow-icon ${inDock ? '' : 'bg-transparent'}`}
                 onClick={handleClick}
             >

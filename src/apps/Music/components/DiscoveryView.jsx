@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { MusicService } from '../../../services/MusicService';
 import { Search, Calendar, ChevronRight, Radio, Heart, Infinity as InfinityIcon, Play, MoreVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) => {
+const DiscoveryView = memo(({ userId, onSelectPlaylist, onPlaySong, onOpenSearch, setGlobalLoading }) => {
     // Data States
+    const [banners, setBanners] = useState([]);
+    const [toplists, setToplists] = useState([]);
     const [recmdPlaylists, setRecmdPlaylists] = useState([]);
     const [allRecmdPlaylists, setAllRecmdPlaylists] = useState([]);
     const [showAllPlaylists, setShowAllPlaylists] = useState(false);
@@ -19,34 +21,98 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
         loadRecommendations();
     }, [userId]);
 
+    const CACHE_KEY = 'hos_music_discovery_cache';
+    const CACHE_EXPIRY = 3600 * 1000; // 1 hour
+
     const loadRecommendations = async () => {
-        setLoading(true);
+        // 1. Try Load from Cache
+        let cached = null;
         try {
-            const [plRes, songRes, fmRes] = await Promise.all([
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (raw) {
+                cached = JSON.parse(raw);
+                if (Date.now() - cached.timestamp < CACHE_EXPIRY) {
+                    // Valid cache - use it immediately
+                    setBanners(cached.banners || []);
+                    setToplists(cached.toplists || []);
+                    setRecmdPlaylists(cached.recmdPlaylists || []);
+                    setAllRecmdPlaylists(cached.allRecmdPlaylists || []);
+                    setTodaySongs(cached.todaySongs || []);
+                    setPrivateFM(cached.privateFM || []);
+                    setLikedSongs(cached.likedSongs || []);
+                    setLoading(false);
+                    if (setGlobalLoading) setGlobalLoading(false);
+                } else {
+                    cached = null; // Expired
+                }
+            }
+        } catch (e) {
+            console.error("Cache read error", e);
+        }
+
+        if (!cached) setLoading(true);
+
+        // 2. Fetch Fresh Data (Stale-while-revalidate)
+        try {
+            const [bannerRes, toplistRes, plRes, songRes, fmRes] = await Promise.all([
+                MusicService.getBanners(),
+                MusicService.getToplists(),
                 MusicService.getRecommendPlaylists(),
                 MusicService.getRecommendSongs(),
                 MusicService.getPersonalFM()
             ]);
 
-            if (plRes?.recommend) {
-                setAllRecmdPlaylists(plRes.recommend);
-                setRecmdPlaylists(plRes.recommend.slice(0, 5));
-            }
-            if (songRes?.data?.dailySongs) setTodaySongs(songRes.data.dailySongs);
-            if (fmRes?.data) setPrivateFM(fmRes.data);
+            const newBanners = bannerRes?.banners?.slice(0, 5) || [];
+            const newToplists = toplistRes?.list?.slice(0, 4) || [];
 
+            let newRecmdPlaylists = [];
+            let newAllRecmdPlaylists = [];
+            if (plRes?.recommend) {
+                newAllRecmdPlaylists = plRes.recommend;
+                newRecmdPlaylists = plRes.recommend.slice(0, 5);
+            }
+
+            const newTodaySongs = songRes?.data?.dailySongs || [];
+            const newPrivateFM = fmRes?.data || [];
+
+            let newLikedSongs = [];
             if (userId) {
                 const likeRes = await MusicService.getLikelist(userId);
                 if (likeRes?.ids && likeRes.ids.length > 0) {
                     const ids = likeRes.ids.slice(0, 20).join(',');
                     const detailRes = await MusicService.getSongDetail(ids);
-                    if (detailRes?.songs) setLikedSongs(detailRes.songs);
+                    if (detailRes?.songs) newLikedSongs = detailRes.songs;
                 }
             }
+
+            // Update State
+            setBanners(newBanners);
+            setToplists(newToplists);
+            setRecmdPlaylists(newRecmdPlaylists);
+            setAllRecmdPlaylists(newAllRecmdPlaylists);
+            setTodaySongs(newTodaySongs);
+            setPrivateFM(newPrivateFM);
+            setLikedSongs(newLikedSongs);
+
+            // Save Cache
+            const cacheData = {
+                timestamp: Date.now(),
+                banners: newBanners,
+                toplists: newToplists,
+                recmdPlaylists: newRecmdPlaylists,
+                allRecmdPlaylists: newAllRecmdPlaylists,
+                todaySongs: newTodaySongs,
+                privateFM: newPrivateFM,
+                likedSongs: newLikedSongs
+            };
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+
         } catch (e) {
             console.error("Failed to load discovery:", e);
         }
         setLoading(false);
+        // Signal global loading to stop
+        if (setGlobalLoading) setGlobalLoading(false);
     };
 
 
@@ -57,18 +123,111 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
         }
     };
 
-    return (
-        <div className="h-full flex flex-col overflow-y-auto pb-32 bg-[#F5F5F7] dark:bg-black scroll-smooth">
-            {/* Search Bar Input - Clicking opens SearchOverlay */}
-            <div className="sticky top-0 z-20 px-4 py-3 bg-[#F5F5F7]/90 dark:bg-black/90 backdrop-blur-md transition-colors duration-300">
-                <div
-                    onClick={onOpenSearch}
-                    className="flex items-center space-x-2 bg-white dark:bg-white/10 p-2.5 rounded-full shadow-sm cursor-pointer"
-                >
-                    <Search size={18} className="text-gray-400 ml-1" />
-                    <span className="text-sm text-gray-400 font-medium">搜索歌曲、歌手、歌单...</span>
+    // --- Skeleton Loader Component ---
+    if (loading) {
+        return (
+            <div className="h-full flex flex-col bg-[#F5F5F7] dark:bg-black p-4 space-y-6 overflow-hidden">
+                {/* Search Skeleton */}
+                <div className="h-10 bg-white dark:bg-white/10 rounded-full w-full animate-pulse" />
+
+                {/* Banner Skeleton */}
+                <div className="w-full aspect-[2.4/1] bg-gray-200 dark:bg-white/5 rounded-2xl animate-pulse" />
+
+                {/* Toplist Grid Skeleton */}
+                <div className="grid grid-cols-2 gap-2">
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="h-16 bg-white dark:bg-white/5 rounded-xl animate-pulse" />
+                    ))}
+                </div>
+
+                {/* List Skeleton */}
+                <div className="space-y-4">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="flex items-center space-x-4">
+                            <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-white/5 animate-pulse" />
+                            <div className="flex-1 space-y-2">
+                                <div className="h-4 bg-gray-200 dark:bg-white/5 rounded w-1/2 animate-pulse" />
+                                <div className="h-3 bg-gray-200 dark:bg-white/5 rounded w-1/4 animate-pulse" />
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
+        );
+    }
+
+    return (
+        <div className="h-full flex flex-col overflow-y-auto pb-32 bg-[#F5F5F7] dark:bg-black scroll-smooth pt-20">
+            {/* Search Bar Removed (Handled by MusicApp) */}
+
+            {/* --- 0. Banner Carousel --- */}
+            {banners.length > 0 && (
+                <div className="px-4 mb-4">
+                    <div
+                        className="flex overflow-x-auto snap-x snap-mandatory pb-2 space-x-3 touch-pan-x no-scrollbar"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                    >
+                        {banners.map((banner, i) => (
+                            <motion.div
+                                key={banner.targetId || i}
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: i * 0.1 }}
+                                className="flex-shrink-0 snap-center w-[85%] aspect-[2.4/1] rounded-2xl overflow-hidden shadow-lg relative cursor-pointer"
+                            >
+                                <img
+                                    src={banner.imageUrl || banner.pic}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                    alt={banner.typeTitle}
+                                    onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.classList.add('bg-gradient-to-br', 'from-gray-200', 'to-gray-300', 'dark:from-white/10', 'dark:to-white/5');
+                                    }}
+                                />
+                                {banner.typeTitle && (
+                                    <div className="absolute bottom-2 right-2 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] text-white font-medium">
+                                        {banner.typeTitle}
+                                    </div>
+                                )}
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* --- 0.5 Toplists Quick Access --- */}
+            {toplists.length > 0 && (
+                <div className="px-4 mb-5">
+                    <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-2 px-1">排行榜</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                        {toplists.map((list) => (
+                            <motion.div
+                                key={list.id}
+                                whileTap={{ scale: 0.97 }}
+                                onClick={() => onSelectPlaylist(list.id, list)} // Pass entire object
+                                className="flex items-center bg-white dark:bg-white/5 rounded-xl p-2.5 shadow-sm cursor-pointer border border-black/5 dark:border-white/5"
+                            >
+                                <img
+                                    src={list.coverImgUrl}
+                                    className="w-11 h-11 rounded-lg object-cover mr-2.5 flex-shrink-0 bg-gray-200 dark:bg-white/10"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.classList.add('flex', 'items-center', 'justify-center');
+                                        e.target.parentElement.insertAdjacentHTML('afterbegin', '<div class="w-11 h-11 rounded-lg bg-gray-200 dark:bg-white/10 mr-2.5 flex items-center justify-center text-[10px] text-gray-400">榜</div>');
+                                    }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-xs font-bold text-gray-900 dark:text-white truncate">{list.name}</h4>
+                                    <p className="text-[10px] text-gray-400 truncate">{list.updateFrequency}</p>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* --- 1. Top Carousel (Daily, Radar, Roaming) --- */}
             <div className="mb-6 overflow-hidden">
@@ -146,11 +305,19 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
                         {allRecmdPlaylists.map((pl) => (
                             <motion.div
                                 key={pl.id}
-                                onClick={() => onSelectPlaylist(pl.id)}
+                                onClick={() => onSelectPlaylist(pl.id, pl)} // Pass full object
                                 className="flex flex-col space-y-2 cursor-pointer active:scale-95 transition-transform"
                             >
-                                <div className="aspect-square rounded-xl overflow-hidden shadow-sm relative bg-gray-200 dark:bg-white/5">
-                                    <img src={pl.picUrl} className="w-full h-full object-cover" loading="lazy" />
+                                <div className="aspect-square rounded-xl overflow-hidden shadow-sm relative bg-gray-200 dark:bg-white/5 flex items-center justify-center">
+                                    <img
+                                        src={pl.picUrl}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            e.target.parentElement.innerHTML += '<span class="text-xs text-gray-400">♫</span>';
+                                        }}
+                                    />
                                     <div className="absolute top-1 right-1 bg-black/40 backdrop-blur-sm px-1.5 rounded-full text-[9px] text-white font-medium flex items-center">
                                         <span className="mr-0.5">▶</span> {(pl.playcount / 10000).toFixed(0)}w
                                     </div>
@@ -173,11 +340,19 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: i * 0.1 }}
-                                onClick={() => onSelectPlaylist(pl.id)}
+                                onClick={() => onSelectPlaylist(pl.id, pl)} // Pass full object
                                 className="flex-shrink-0 w-28 snap-start flex flex-col space-y-2 cursor-pointer group active:scale-95 transition-transform"
                             >
-                                <div className="aspect-square rounded-xl overflow-hidden shadow-sm relative bg-gray-200 dark:bg-white/5">
-                                    <img src={pl.picUrl} className="w-full h-full object-cover" loading="lazy" />
+                                <div className="aspect-square rounded-xl overflow-hidden shadow-sm relative bg-gray-200 dark:bg-white/5 flex items-center justify-center">
+                                    <img
+                                        src={pl.picUrl}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            e.target.parentElement.innerHTML += '<span class="text-xs text-gray-400">♫</span>';
+                                        }}
+                                    />
                                     <div className="absolute top-1 right-1 bg-black/40 backdrop-blur-sm px-1.5 rounded-full text-[9px] text-white font-medium flex items-center">
                                         <span className="mr-0.5">▶</span> {(pl.playcount / 10000).toFixed(0)}w
                                     </div>
@@ -227,7 +402,19 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
                             onClick={() => onPlaySong(song, todaySongs)}
                             className="flex items-center p-2 rounded-xl active:bg-gray-100 dark:active:bg-white/10 transition-colors cursor-pointer"
                         >
-                            <img src={song.al?.picUrl} className="w-12 h-12 rounded-lg object-cover mr-3 flex-shrink-0 bg-gray-200" loading="lazy" />
+                            <img
+                                src={song.al?.picUrl}
+                                className="w-12 h-12 rounded-lg object-cover mr-3 flex-shrink-0 bg-gray-200 dark:bg-white/10"
+                                loading="lazy"
+                                onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.parentElement.classList.add('flex', 'items-center', 'justify-center');
+                                    const placeholder = document.createElement('div');
+                                    placeholder.className = 'w-12 h-12 rounded-lg bg-gray-200 dark:bg-white/10 mr-3 flex items-center justify-center text-xs text-gray-400';
+                                    placeholder.innerText = '♫';
+                                    e.target.parentElement.insertBefore(placeholder, e.target);
+                                }}
+                            />
                             <div className="flex-1 min-w-0">
                                 <h4 className="font-bold text-sm dark:text-white truncate">{song.name}</h4>
                                 <p className="text-xs text-gray-500 truncate">
@@ -244,6 +431,6 @@ const DiscoveryView = ({ userId, onSelectPlaylist, onPlaySong, onOpenSearch }) =
             </div>
         </div>
     );
-};
+});
 
 export default DiscoveryView;

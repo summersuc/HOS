@@ -99,6 +99,7 @@ select {
 }
 
 /* 隐藏滚动条但允许滚动 */
+/* 隐藏滚动条但允许滚动 */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -106,4 +107,50 @@ select {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Premium Colors System - iOS 26 Enhanced */
+:root {
+  /* iOS 26 品牌色 - 柔和的蓝紫色渐变 */
+  --color-primary: hsl(220, 100%, 65%);
+  --color-primary-start: hsl(220, 100%, 68%);
+  --color-primary-end: hsl(235, 95%, 62%);
+  --color-primary-dark: #0A84FF;
+
+  /* 背景色 */
+  --bg-primary-light: #F2F2F7;
+  --bg-card-light: #FFFFFF;
+  --text-primary-light: #000000;
+  --text-secondary-light: #8E8E93;
+
+  --bg-primary-dark: #000000;
+  --bg-card-dark: #1C1C1E;
+  --text-primary-dark: #FFFFFF;
+  --text-secondary-dark: #98989E;
+
+  /* 毛玻璃效果 */
+  --glass-bg-light: rgba(255, 255, 255, 0.72);
+  --glass-bg-dark: rgba(28, 28, 30, 0.72);
+  --glass-border-light: rgba(255, 255, 255, 0.18);
+  --glass-border-dark: rgba(255, 255, 255, 0.12);
+
+  /* 卡片背景 */
+  --card-bg-light: rgba(255, 255, 255, 0.88);
+  --card-bg-dark: rgba(28, 28, 30, 0.88);
+
+  /* 阴影系统 */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-colored: 0 4px 20px rgba(91, 127, 255, 0.25);
+
+  /* 果冻感光泽 */
+  --shimmer-light: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.4) 0%,
+      rgba(255, 255, 255, 0) 50%,
+      rgba(255, 255, 255, 0.4) 100%);
+  --shimmer-dark: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0) 50%,
+      rgba(255, 255, 255, 0.1) 100%);
 }

@@ -3,32 +3,73 @@ import { useState, useEffect, useRef } from 'react';
 // GLOBAL SINGLETON AUDIO STATE
 // This ensures that even if the component unmounts, the underlying audio object and state persist.
 // In a real OS environment, this would be a system service.
-const globalAudio = new Audio();
-const globalState = {
+export const globalAudio = new Audio();
+
+// --- Persistence Helper ---
+const STORAGE_KEY = 'hos_music_state';
+const loadState = () => {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            return {
+                ...parsed,
+                isPlaying: false, // Never auto-play on reload
+            };
+        }
+    } catch (e) {
+        console.error("Failed to load music state", e);
+    }
+    return null;
+};
+
+const savedState = loadState();
+
+const globalState = savedState || {
     isPlaying: false,
     progress: 0,
     duration: 0,
-    playlist: [],
-    queue: [],
+    playlist: [], // Context list
+    queue: [],    // Actual play queue
     currentIndex: -1,
     currentTrack: null,
     mode: 'sequence',
     history: []
 };
 
+// If we have a saved track, try to restore src (but don't play)
+// Note: We might need to refresh the URL if it expires, but for now assume it helps.
+// Actually, Netease URLs expire. So reusing the URL might fail.
+// Strategy: Restore track info, but NOT the src. When user clicks play, 'playTrack' logic runs.
+// But 'playTrack' takes a URL.
+// We need a way to 'resume' which re-fetches URL if needed.
+// For now, let's NOT set globalAudio.src. Wait for user interaction.
+// But the UI needs to show the track.
+
 // Event verification to prevent multi-binding
 let isGlobalListenerAttached = false;
 const listeners = new Set(); // Set of setStates to update
 
+const saveState = () => {
+    try {
+        const { isPlaying, ...stateToSave } = globalState;
+        // Don't save large history if not needed, but queue is important
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    } catch (e) {
+        // Quantal error or quota
+    }
+};
+
 const broadcastState = () => {
     listeners.forEach(setState => setState({ ...globalState }));
+    saveState();
 };
 
 // Bind Events to Global Audio Once
 if (!isGlobalListenerAttached) {
     globalAudio.addEventListener('timeupdate', () => {
         globalState.progress = globalAudio.currentTime;
-        broadcastState();
+        broadcastState(); // layout thrashing? throttle this if performance issues arise
     });
     globalAudio.addEventListener('loadedmetadata', () => {
         globalState.duration = globalAudio.duration;
@@ -62,28 +103,6 @@ export const useAudio = () => {
     // Local state syncing with global
     const [state, setState] = useState({ ...globalState });
 
-    useEffect(() => {
-        listeners.add(setState);
-        // Initial sync
-        setState({ ...globalState });
-
-        // Listen for custom 'audio-ended' event to trigger next track logic from within the hook
-        // This is a bit tricky since multiple components using the hook might trigger it.
-        // We should designate one "Master" or just let proper singleton management handle it.
-        // For now, let's keep the hook simple: changing track is an action.
-
-        const handleEnded = () => {
-            // Logic to play next
-            playNext();
-        };
-        globalAudio.addEventListener('audio-ended', handleEnded);
-
-        return () => {
-            listeners.delete(setState);
-            globalAudio.removeEventListener('audio-ended', handleEnded);
-        };
-    }, []);
-
     const toggleMode = () => {
         const modes = ['sequence', 'loop', 'shuffle'];
         const nextMode = modes[(modes.indexOf(globalState.mode) + 1) % modes.length];
@@ -109,6 +128,31 @@ export const useAudio = () => {
         broadcastState();
     };
 
+    useEffect(() => {
+        listeners.add(setState);
+        // Initial sync
+        setState({ ...globalState });
+
+        const handleEnded = () => {
+            // Logic to play next automatically
+            if (globalState.queue.length === 0) return;
+            let nextIndex = globalState.currentIndex + 1;
+            if (nextIndex >= globalState.queue.length) {
+                nextIndex = 0;
+            }
+            const nextTrack = globalState.queue[nextIndex];
+            if (nextTrack) {
+                globalAudio.dispatchEvent(new CustomEvent('request-play-next', { detail: nextTrack }));
+            }
+        };
+        globalAudio.addEventListener('audio-ended', handleEnded);
+
+        return () => {
+            listeners.delete(setState);
+            globalAudio.removeEventListener('audio-ended', handleEnded);
+        };
+    }, []);
+
     const playTrack = async (track, url, list = []) => {
         if (!url) return;
 
@@ -126,17 +170,27 @@ export const useAudio = () => {
                 globalState.currentIndex = list.findIndex(t => t.id === track.id);
             }
             globalState.history = [];
+        } else {
+            // 单曲播放：尝试在现有队列中查找并更新索引
+            const existingIdx = globalState.queue.findIndex(t => t.id === track.id);
+            if (existingIdx > -1) {
+                globalState.currentIndex = existingIdx;
+            }
         }
+
+        // --- Optimistic UI Update: Update State IMMEDIATELY before loading audio ---
+        globalState.currentTrack = track;
+        globalState.isPlaying = true; // Assume success first for instant toggle
+        broadcastState(); // Force UI update NOW
 
         try {
             // Prevent reload if same source?
             if (globalAudio.src !== url) {
                 globalAudio.src = url;
             }
-            globalState.currentTrack = track;
 
             await globalAudio.play();
-            globalState.isPlaying = true;
+            // globalState.isPlaying = true; // Already set
         } catch (error) {
             if (error.name !== 'AbortError') {
                 console.error("Playback failed:", error);
@@ -187,6 +241,7 @@ export const useAudio = () => {
         progress: state.progress,
         duration: state.duration,
         currentTrack: state.currentTrack,
+        currentIndex: state.currentIndex,
         mode: state.mode,
         queue: state.queue,
         toggleMode,

@@ -67,7 +67,8 @@ export const llmService = {
             model: overrideOptions.model || config.model || 'gpt-3.5-turbo',
             messages: messages,
             temperature: overrideOptions.temperature ?? config.temperature ?? 0.7,
-            stream: false, // For Phase 1, we use non-streaming for simplicity
+            stream: false,
+            ...(overrideOptions.max_tokens ? { max_tokens: overrideOptions.max_tokens } : {}),
             ...overrideOptions
         };
 
@@ -146,20 +147,76 @@ export const llmService = {
             return [{ role: 'system', content: 'You are a helpful assistant.' }, { role: 'user', content: userText }];
         }
 
+        // [Moved] Fetch History Early for scanning
+        let historyQuery = db.messengerMessages
+            .where('[conversationType+conversationId]')
+            .equals(['single', conversationId])
+            .reverse();
+
+        if (historyLimit > 0) {
+            historyQuery = historyQuery.limit(historyLimit);
+        }
+
+        let dbHistory = await historyQuery.toArray();
+        // dbHistory is reversed (Newest First) because of .reverse() in query
+        // We usually want Oldest First for the Context Array.
+        const reversedHistory = dbHistory; // Keep newest first for keyword scanning
+        const chronologicalHistory = [...dbHistory].reverse(); // Oldest first for context
+
         // 2. Fetch World Book (Enabled entries for this char)
         let worldBookText = 'None';
         if (db.worldBookEntries) {
             try {
                 const wbEntries = await db.worldBookEntries
-                    .where('characterId').equals(parseInt(characterId) || characterId)
-                    .filter(entry => entry.enabled !== false)
+                    .filter(entry =>
+                        entry.enabled !== false &&
+                        (entry.isGlobal === true || entry.characterId === (parseInt(characterId) || characterId))
+                    )
                     .toArray();
 
-                // Sort by priority (insertion order), descending or ascending logic if field exists
-                // Since schema might not have priority yet, we'll just join comfortably.
-                if (wbEntries.length > 0) {
-                    worldBookText = wbEntries.map(e => `[Info: ${e.title}]\n${e.content}`).join('\n\n');
-                }
+                // Keyword + Limit Logic (Simple substring match for now, could be improved)
+                // We'll collect entries into buckets: before_char, after_char, after_scenario
+                const wbBuckets = {
+                    before_char: [],
+                    after_char: [],
+                    after_scenario: []
+                };
+
+                // Scan chat history for keywords (last 20 messages)
+                const recentHistory = reversedHistory ? reversedHistory.slice(0, 20).map(m => m.content).join(' ') : '';
+
+                wbEntries.forEach(e => {
+                    // Check triggers
+                    let shouldInclude = false;
+
+                    // Always include if no keys defined (passive lore) OR if keys match
+                    if (!e.keys || e.keys.trim() === '') {
+                        shouldInclude = true;
+                    } else {
+                        const keys = e.keys.split(',').map(k => k.trim().toLowerCase());
+                        if (keys.some(k => k && recentHistory.toLowerCase().includes(k))) {
+                            shouldInclude = true;
+                        }
+                    }
+
+                    if (shouldInclude) {
+                        const pos = e.injectionPosition || 'before_char';
+                        if (wbBuckets[pos]) wbBuckets[pos].push(e);
+                        else wbBuckets['before_char'].push(e); // default
+                    }
+                });
+
+                // Format helper
+                const formatWB = (list) => list.length > 0
+                    ? list.map(e => `[Information: ${e.title || 'Entry'}]\n${e.content}`).join('\n\n')
+                    : '';
+
+                options.wbContext = {
+                    before_char: formatWB(wbBuckets.before_char),
+                    after_char: formatWB(wbBuckets.after_char),
+                    after_scenario: formatWB(wbBuckets.after_scenario)
+                };
+
             } catch (e) {
                 console.warn('WorldBook fetch failed:', e);
             }
@@ -171,79 +228,99 @@ export const llmService = {
         const userName = userP?.userName || 'User';
         const userDesc = userP?.description || 'Unknown';
 
-        const globalCore = `Identity: ${char.name}
+        const wb = options.wbContext || { before_char: '', after_char: '', after_scenario: '' };
+
+        const globalCore = `${wb.before_char ? wb.before_char + '\n\n' : ''}Identity: ${char.name}
 Persona: ${char.personality || char.description || 'Unknown'}
-User: ${userName}
+${wb.after_char ? '\n' + wb.after_char + '\n' : ''}User: ${userName}
 User Info: ${userDesc}
 Relationship: ${char.relationship || 'Stranger'}
-World Book Info:
-${worldBookText}`;
+${wb.after_scenario ? '\n' + wb.after_scenario + '\n' : ''}`;
 
-        // Fetch Sticker List
+        // Fetch Sticker List - FIXED: No more contradictory rules
         let stickerPrompt = '';
         try {
             const stickers = await db.stickers.toArray();
             if (stickers.length > 0) {
-                const names = stickers.map(s => s.name).join(', ');
-                stickerPrompt = `4. STICKERS: You have access to these stickers: [${names}]. You can send a sticker by outputting [Sticker: Name]. If the list is empty, DO NOT send any stickers. ONLY use names from this exact list.`;
-            } else {
-                stickerPrompt = `4. STICKERS: You have ZERO stickers in your library. NEVER output any text in brackets like [Sticker: ...] or anything similar. If you do, the system will error. Use ONLY text, emojis, and kaomoji.`;
+                const names = stickers.slice(0, 20).map(s => s.name).join(', '); // Limit to 20 to save tokens
+                stickerPrompt = `[Stickers Available]\nYou can use: [${names}]\nSend with: [Sticker: ExactName]`;
             }
+            // If no stickers, stickerPrompt stays empty - no confusing "NEVER use" rules
         } catch (e) {
             console.warn('Sticker fetch failed:', e);
         }
 
-        // 4. Part 2: Messenger Prompt
-        const timeStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        // Enhanced Time Context
+        const userTz = userP?.timezone || 'Asia/Shanghai';
+        const charTz = char.timezone || 'Asia/Shanghai';
+
+        const now = new Date();
+        const fmt = (tz) => ({
+            date: now.toLocaleDateString('zh-CN', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'long' }),
+            time: now.toLocaleTimeString('zh-CN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }),
+            hour: parseInt(now.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', hour12: false })),
+            period: (h) => h < 6 ? '凌晨' : h < 12 ? '上午' : h < 18 ? '下午' : '晚上'
+        });
+
+        const uT = fmt(userTz);
+        const cT = fmt(charTz);
+
+        let timeContext = `Global Time: ${now.toISOString()}\n`;
+        timeContext += `User Local Time: ${uT.date} ${uT.period(uT.hour)} ${uT.time} (${userTz})\n`;
+
+        if (userTz !== charTz) {
+            timeContext += `Character Local Time: ${cT.date} ${cT.period(cT.hour)} ${cT.time} (${charTz})\n`;
+
+            // Calculate time difference
+            const userDate = new Date(now.toLocaleString('en-US', { timeZone: userTz }));
+            const charDate = new Date(now.toLocaleString('en-US', { timeZone: charTz }));
+            const diffHours = Math.round((charDate - userDate) / (1000 * 60 * 60));
+            const diffStr = diffHours === 0 ? 'Same time' : diffHours > 0 ? `+${diffHours}h ahead` : `${diffHours}h behind`;
+            timeContext += `Time Difference: ${diffStr}`;
+        } else {
+            timeContext += `(Same Timezone)`;
+        }
+
+        // Parse replyCount for display
+        const replyDisplay = String(replyCount).includes('-')
+            ? replyCount.replace('-', ' to ')
+            : replyCount;
+
+        // 4. Part 2: Messenger Prompt - STRENGTHENED
         const appPrompt = `[Context: HoshinoOS Messenger]
 Device: HoshinoOS (Mobile)
 Status: Chatting online via HOS Messenger.
-Time: ${timeStr}
+[Time Context]
+${timeContext}
 
-[Rules]
-1. OUTPUT FORMAT: ONLY Language/Text. NO actions (e.g. *hugs*). NO psychological descriptions (e.g. (thinking...)). 
-2. EXPRESSION: Use Text, Emojis, Kaomoji, and [Sticker] matching your Persona.
-3. REPLY LENGTH & SPLITTING: 
-   - You MUST split your response into multiple bubbles/paragraphs.
-   - Separate each independent thought or bubble with a single NEWLINE (\n).
-   - Aim for ${String(replyCount).includes('-') ? replyCount.replace('-', ' to ') : replyCount} bubbles per turn.
-   - DO NOT bunch everything into one block. Use newlines aggressively to simulate real chatting.
-${stickerPrompt}
-${noPunctuation ? '4. NO PUNCTUATION: Do NOT use any punctuation marks (like , . ! ?). Use spaces/newlines to separate sentences instead. This is a unique style requirement.\n' : ''}
+[MANDATORY OUTPUT RULES]
+1. FORMAT: Text ONLY. NO actions (*hugs*). NO thoughts ((thinking...)).
+2. EXPRESSION: Text, Emojis, Kaomoji${stickerPrompt ? ', and Stickers from the list below' : ''}.
+3. REPLY STRUCTURE (MUST FOLLOW):
+   - You MUST output EXACTLY ${replyDisplay} separate message bubbles.
+   - Each bubble MUST be under 80 Chinese characters or 150 English characters.
+   - Separate each bubble with a SINGLE newline (\\n).
+   - FAILURE TO SPLIT = SYSTEM ERROR. DO NOT ignore this.
+${stickerPrompt ? stickerPrompt + '\n' : ''}${noPunctuation ? '4. NO PUNCTUATION: Omit all punctuation (,.!?). Use spaces/newlines instead.\n' : ''}${options.translationMode?.enabled ? '5. [BILINGUAL MODE]: You MUST reply in the character\'s native language, then append a Chinese translation using the command: [Translation: Chinese content here].\n' : ''}
 [Protocol]
 - [User sent Image: ...]: React to visual details.
 - [User sent Red Packet: ...]: React to money/luck.
 
-[Commands] (Use these to perform actions)
-- SEND STICKER: [Sticker: Name] (Check list above)
-- SEND RED PACKET: [RedPacket: Amount, Note] (e.g. [RedPacket: 200, 大吉大利])
-- SEND TRANSFER: [Transfer: Amount, Note] (e.g. [Transfer: 520, 拿去买皮肤])
-- SEND GIFT: [Gift: GiftName] (e.g. [Gift: 鲜花])
+[Commands]
+- SEND STICKER: [Sticker: Name]
+- SEND RED PACKET: [RedPacket: Amount, Note]
+- SEND TRANSFER: [Transfer: Amount, Note]
+- SEND GIFT: [Gift: GiftName]
 
 [System]
-Never describe actions like *hands you a red packet*. INSTEAD, use the [RedPacket: ...] command.
-REMEMBER: Split bubbles with newlines!`;
-
-        // 5. Fetch History
-        let historyQuery = db.messengerMessages
-            .where('[conversationType+conversationId]')
-            .equals(['single', conversationId])
-            .reverse();
-
-        // 0 = No Limit (Infinity)
-        if (historyLimit > 0) {
-            historyQuery = historyQuery.limit(historyLimit);
-        }
-
-        let history = await historyQuery.toArray();
-        history = history.reverse(); // Oldest first
+Never describe actions like *hands you a red packet*. Use [RedPacket: ...] command instead.`;
 
         // 6. Assemble Messages
         const messages = [
             { role: 'system', content: globalCore + "\n\n" + appPrompt }
         ];
 
-        history.forEach(msg => {
+        chronologicalHistory.forEach(msg => {
             if (msg.role && msg.content) {
                 let content = msg.content;
                 // Re-apply Rich Media descriptions if raw content isn't descriptive enough
@@ -267,6 +344,18 @@ REMEMBER: Split bubbles with newlines!`;
             messages.push({ role: 'user', content: userText });
         }
 
+        // --- [NEW] Post-Instruction (Recency Bias) ---
+        // 强化 Anti-OOC 和 时间感知
+        const postTime = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const postSystem = `[System Reminder]
+1. Current Time: ${postTime} (${uT.period(uT.hour)}). React to the time if relevant.
+2. STAY IN CHARACTER (${char.name}).
+3. RULE: TEXT ONLY. NO ACTIONS (*...*) OR THOUGHTS ((...)).
+4. FORMAT: EXACTLY ${replyDisplay} bubbles, split by single newline.`;
+
+        messages.push({ role: 'system', content: postSystem });
+        // ---------------------------------------------
+
         return messages;
     },
 
@@ -276,10 +365,11 @@ REMEMBER: Split bubbles with newlines!`;
      * @param {Function} onDelta 
      * @param {Function} onComplete 
      * @param {Function} onError 
+     * @param {Object} options - Optional API parameters like max_tokens
      */
-    async sendMessageStream(messages, onDelta, onComplete, onError) {
+    async sendMessageStream(messages, onDelta, onComplete, onError, options = {}) {
         try {
-            const text = await this.chatCompletion(messages);
+            const text = await this.chatCompletion(messages, options);
 
             // PWA Background Optimization: 
             // If the tab is hidden, skip simulation to ensure notification triggers immediately.

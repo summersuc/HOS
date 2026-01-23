@@ -4,6 +4,7 @@ import { MessageCircle, Settings, MoreHorizontal, ChevronRight } from 'lucide-re
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import IOSPage from '../../../components/AppWindow/IOSPage';
+import { motion } from 'framer-motion';
 
 const CharacterProfile = ({ characterId, onBack, onMessage, onEdit }) => {
     const character = useLiveQuery(() => db.characters.get(characterId), [characterId]);
@@ -16,17 +17,21 @@ const CharacterProfile = ({ characterId, onBack, onMessage, onEdit }) => {
         }>
             <div className="bg-[#F2F2F7] dark:bg-black min-h-full pb-10">
                 {/* Header Info */}
-                <div className="bg-white dark:bg-[#1C1C1E] pb-6 pt-4 px-4 flex flex-col items-center border-b border-gray-200 dark:border-white/5 mb-3">
+                <div className="bg-gradient-to-b from-white/90 to-white/70 dark:from-[#1C1C1E]/90 dark:to-[#1C1C1E]/70 backdrop-blur-2xl pb-8 pt-6 px-4 flex flex-col items-center border-b border-gray-200/30 dark:border-white/8">
 
-                    <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 dark:bg-[#2C2C2E] mb-4 shadow-sm border border-gray-100 dark:border-white/5 flex items-center justify-center">
-                        <Avatar src={character.avatar} name={character.name} size={96} className="rounded-2xl" />
+                    {/* 头像外圈渐变 - 高级白灰色 */}
+                    <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-gray-200 via-white to-gray-300 dark:from-gray-600 dark:via-gray-500 dark:to-gray-700 p-[3px] shadow-2xl mb-5">
+                        <div className="w-full h-full rounded-3xl bg-white dark:bg-[#1C1C1E] overflow-hidden">
+                            <Avatar src={character.avatar} name={character.name} size={112} />
+                        </div>
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{character.nickname || character.name}</h2>
+
+                    <h2 className="text-[28px] font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2">{character.nickname || character.name}</h2>
                     {character.nickname && <p className="text-gray-500 text-sm">姓名: {character.name}</p>}
                 </div>
 
                 {/* Info List */}
-                <div className="bg-white dark:bg-[#1C1C1E] border-y border-gray-200 dark:border-white/5 mb-6">
+                <div className="bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-xl border-y border-gray-200/50 dark:border-white/8 mb-6">
                     <div className="px-4 py-4 flex gap-4">
                         <span className="text-[15px] font-medium text-gray-900 dark:text-white shrink-0">人设</span>
                         <p className="text-[15px] text-gray-500 leading-relaxed">
@@ -48,13 +53,14 @@ const CharacterProfile = ({ characterId, onBack, onMessage, onEdit }) => {
 
                 {/* Actions */}
                 <div className="px-4">
-                    <button
+                    <motion.button
                         onClick={onMessage}
-                        className="w-full py-3.5 bg-[#5B7FFF] active:bg-[#4A6EEE] text-white rounded-xl font-semibold text-[16px] flex items-center justify-center gap-2 shadow-lg shadow-[#5B7FFF]/20 transition-all active:scale-[0.98]"
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full py-4 bg-gradient-to-r from-gray-400 to-gray-500 active:from-gray-500 active:to-gray-600 text-white rounded-2xl font-semibold text-[17px] flex items-center justify-center gap-2.5 shadow-xl shadow-gray-400/30 transition-all duration-200"
                     >
-                        <MessageCircle size={20} />
+                        <MessageCircle size={22} />
                         发消息
-                    </button>
+                    </motion.button>
                 </div>
             </div>
         </IOSPage>

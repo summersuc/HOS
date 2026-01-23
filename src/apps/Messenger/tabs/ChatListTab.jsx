@@ -1,9 +1,10 @@
-import React from 'react';
-import { Search, Plus } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Search, Plus, MessageCircle } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
 import Avatar from '../components/Avatar';
+import { motion } from 'framer-motion';
 
 const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
     const conversations = useLiveQuery(() =>
@@ -11,76 +12,156 @@ const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
     );
     const characters = useLiveQuery(() => db.characters.toArray());
 
+    // Fetch last message for each conversation
+    const [lastMessages, setLastMessages] = useState({});
+    const [unreadCounts, setUnreadCounts] = useState({});
+
+    useEffect(() => {
+        const fetchLastMessages = async () => {
+            if (!conversations) return;
+            const messages = {};
+            const unreads = {};
+
+            for (const conv of conversations) {
+                try {
+                    // Get last message
+                    const lastMsg = await db.messengerMessages
+                        .where('[conversationType+conversationId]')
+                        .equals(['single', conv.id])
+                        .reverse()
+                        .first();
+
+                    if (lastMsg) {
+                        messages[conv.id] = lastMsg.content?.slice(0, 50) || '';
+                    }
+
+                    // Get unread count (messages after lastReadAt)
+                    const lastReadAt = conv.lastReadAt || 0;
+                    const unreadCount = await db.messengerMessages
+                        .where('[conversationType+conversationId]')
+                        .equals(['single', conv.id])
+                        .filter(m => m.timestamp > lastReadAt && m.role !== 'user')
+                        .count();
+
+                    unreads[conv.id] = unreadCount;
+                } catch (e) {
+                    console.warn('Failed to fetch last message for conv:', conv.id, e);
+                }
+            }
+
+            setLastMessages(messages);
+            setUnreadCounts(unreads);
+        };
+
+        fetchLastMessages();
+    }, [conversations]);
+
     const getCharacter = (id) => characters?.find(c => c.id === id);
 
+    const formatUnread = (count) => {
+        if (!count || count === 0) return null;
+        if (count > 99) return '99+';
+        return String(count);
+    };
+
     return (
-        <div className="h-full flex flex-col bg-[#F2F2F7] dark:bg-black">
+        <div className="h-full flex flex-col bg-[var(--bg-primary-light)] dark:bg-[var(--bg-primary-dark)] transition-colors duration-300">
             {/* Header */}
-            <div className="shrink-0 pt-[var(--sat)] bg-[#F2F2F7]/90 dark:bg-[#1C1C1E]/90 backdrop-blur-2xl border-b border-gray-200/50 dark:border-white/5">
-                <div className="h-[56px] flex items-center justify-between px-4">
-                    <h1 className="text-[28px] font-bold text-gray-900 dark:text-white tracking-tight">消息</h1>
-                    <button
+            <div className="shrink-0 pt-[var(--sat)] bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-3xl border-b border-gray-200/30 dark:border-white/8 z-10">
+                <div className="h-[56px] flex items-center justify-between px-5">
+                    <h1 className="text-[32px] font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-white dark:to-gray-100 bg-clip-text text-transparent tracking-tight">消息</h1>
+                    <motion.button
                         onClick={(e) => {
                             e.stopPropagation();
                             triggerHaptic();
                             onShowNewMenu();
                         }}
-                        className="w-8 h-8 rounded-full bg-white dark:bg-[#2C2C2E] flex items-center justify-center shadow-sm active:scale-95 transition-transform"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-500 dark:to-gray-600 flex items-center justify-center shadow-lg shadow-gray-400/25"
                     >
-                        <Plus size={20} className="text-[#5B7FFF]" strokeWidth={2.5} />
-                    </button>
+                        <Plus size={20} className="text-white" strokeWidth={2.5} />
+                    </motion.button>
                 </div>
             </div>
 
-            {/* Search */}
-            <div className="shrink-0 px-4 py-2 bg-[#F2F2F7] dark:bg-black">
+            {/* Search - Compact */}
+            <div className="shrink-0 px-4 py-2 bg-transparent z-10">
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                     <input
                         type="text"
                         placeholder="搜索"
-                        className="w-full bg-white dark:bg-[#1C1C1E] rounded-xl py-2 pl-9 pr-4 text-[15px] focus:outline-none text-gray-800 dark:text-white placeholder-gray-400"
+                        className="w-full bg-white/50 dark:bg-[#1C1C1E]/50 backdrop-blur-xl rounded-xl py-2 pl-9 pr-3 text-[14px] focus:outline-none focus:ring-1 focus:ring-gray-300/50 text-gray-900 dark:text-white placeholder-gray-400 border border-gray-200/30 dark:border-white/8 transition-all duration-200"
                     />
                 </div>
             </div>
 
-            {/* Conversation List - iOS Style */}
-            <div className="flex-1 overflow-y-auto bg-white dark:bg-[#1C1C1E]">
+            {/* Conversation List - Premium Style */}
+            <div className="flex-1 overflow-y-auto mx-4 mt-2 mb-4 pb-[var(--sab)] no-scrollbar">
                 {conversations && conversations.length > 0 ? (
-                    conversations.map((conv) => {
-                        const char = getCharacter(conv.characterId);
-                        return (
-                            <div
-                                key={conv.id}
-                                onClick={() => { triggerHaptic(); onSelectChat(conv.id, conv.characterId); }}
-                                className="flex items-center gap-3 pl-4 pr-4 py-3 cursor-pointer active:bg-gray-100 dark:active:bg-[#2C2C2E] transition-colors"
-                            >
-                                {/* Avatar */}
-                                <Avatar src={char?.avatar} name={char?.name} size={50} />
+                    <div className="bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-xl rounded-3xl overflow-hidden border border-gray-200/50 dark:border-white/8 shadow-md transition-colors duration-300">
+                        {conversations.map((conv, index) => {
+                            const char = getCharacter(conv.characterId);
+                            const lastMsg = lastMessages[conv.id];
+                            const unread = unreadCounts[conv.id] || 0;
+                            const unreadLabel = formatUnread(unread);
 
-                                {/* Content */}
-                                <div className="flex-1 min-w-0 h-[50px] flex flex-col justify-center border-b border-gray-100 dark:border-white/5 mr-[-16px] pr-4">
-                                    <div className="flex justify-between items-baseline mb-1">
-                                        <h3 className="font-semibold text-[16px] text-gray-900 dark:text-white truncate">
-                                            {char?.nickname || char?.name || '未知'}
-                                        </h3>
-                                        <span className="text-[11px] text-gray-400 shrink-0 ml-2 font-medium">
-                                            {formatTime(conv.updatedAt)}
-                                        </span>
+                            return (
+                                <motion.div
+                                    key={conv.id}
+                                    onClick={() => {
+                                        triggerHaptic();
+                                        // Mark as read when opening
+                                        db.conversations.update(conv.id, { lastReadAt: Date.now() });
+                                        onSelectChat(conv.id, conv.characterId);
+                                    }}
+                                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer active:bg-gray-100 dark:active:bg-white/10 transition-colors"
+                                    style={{ borderBottom: index < conversations.length - 1 ? '0.5px solid rgba(0,0,0,0.05)' : 'none' }}
+                                    whileTap={{ scale: 0.98 }}
+                                >
+                                    {/* Avatar with Unread Badge */}
+                                    <div className="relative shrink-0">
+                                        <div className="w-[48px] h-[48px] rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 p-0.5">
+                                            <Avatar src={char?.avatar} name={char?.name} size={48} className="rounded-xl" />
+                                        </div>
+                                        {/* Status Indicator */}
+                                        {char?.currentStatus && (
+                                            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-[#1C1C1E] rounded-full" />
+                                        )}
+                                        {/* Unread Badge */}
+                                        {unreadLabel && (
+                                            <div className="absolute -top-1 -right-1 min-w-[22px] h-[22px] bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center px-1.5 shadow-lg shadow-red-500/40 border-2 border-white dark:border-[#1C1C1E]">
+                                                <span className="text-[11px] font-bold text-white">{unreadLabel}</span>
+                                            </div>
+                                        )}
                                     </div>
-                                    <p className="text-[14px] text-gray-500 dark:text-gray-400 truncate">
-                                        点击查看消息
-                                    </p>
-                                </div>
-                            </div>
-                        );
-                    })
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-baseline mb-1">
+                                            <h3 className={`font-semibold text-[16px] truncate ${unread > 0 ? 'text-[var(--text-primary-light)] dark:text-[var(--text-primary-dark)]' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                {char?.nickname || char?.name || '未知'}
+                                            </h3>
+                                            <span className="text-[11px] text-[var(--text-secondary-light)] dark:text-[var(--text-secondary-dark)] shrink-0 ml-2 font-medium">
+                                                {formatTime(conv.updatedAt)}
+                                            </span>
+                                        </div>
+                                        <p className={`text-[14px] truncate ${unread > 0 ? 'text-gray-600 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                                            {lastMsg || '暂无消息'}
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
                 ) : (
                     <div className="flex flex-col items-center justify-center pt-32 text-gray-400">
-                        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-[#2C2C2E] flex items-center justify-center mb-4">
-                            <Plus size={28} className="text-gray-300" />
+                        <div className="w-20 h-20 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mb-4">
+                            <MessageCircle size={32} className="text-[var(--color-primary)]/50" />
                         </div>
                         <p className="text-[15px] font-medium text-gray-500">暂无消息</p>
+                        <p className="text-[13px] text-gray-400 mt-1">点击右上角开始新对话</p>
                     </div>
                 )}
             </div>

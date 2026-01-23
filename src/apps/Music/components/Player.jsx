@@ -1,22 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useDragControls, useAnimation } from 'framer-motion';
-import { ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, ListMusic, Heart } from 'lucide-react';
+import { ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, ListMusic, Heart, MessageSquare, Mic2, Sparkles } from 'lucide-react';
 import { MusicService } from '../../../services/MusicService';
+import LyricsView from './LyricsView';
+import CommentSheet from './CommentSheet';
+import AuroraBackground from './AuroraBackground';
 
-const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, onNext, onPrev, mode, onToggleMode }) => {
+const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, onNext, onPrev, mode, onToggleMode, onOpenQueue, onIntelligenceMode }) => {
     const [isLiked, setIsLiked] = useState(false);
+    const [viewMode, setViewMode] = useState('vinyl'); // 'vinyl' | 'lyrics'
+    const [showComments, setShowComments] = useState(false);
 
-    // Drag controls for swipe-to-close
-    const x = useMotionValue(0);
-    const dragControls = useDragControls();
+    // Animation Controls
     const controls = useAnimation();
+    const dragY = useMotionValue(0);
 
-    // Reset like state on track change (In real app, we'd check if liked)
     useEffect(() => {
-        setIsLiked(false);
-    }, [track?.id]);
+        // Slide up on mount
+        controls.start({ y: 0 });
+    }, []);
 
-    if (!track) return null;
+    const handleClose = async () => {
+        await controls.start({ y: '100%' });
+        onClose();
+    };
 
     const formatTime = (t) => {
         if (!t) return "0:00";
@@ -36,137 +43,126 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
         }
     };
 
-    // Handle drag end for swipe-back gesture
-    const handleDragEnd = async (event, info) => {
-        const offset = info.offset.x;
-        const velocity = info.velocity.x;
-
-        // Threshold: > 80px or fast swipe > 300px/s
-        if (offset > 80 || velocity > 300) {
-            // Animate out smoothly then close
-            await controls.start({
-                x: "100%",
-                transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] }
-            });
-            onClose();
-        } else {
-            // Snap back
-            controls.start({
-                x: 0,
-                transition: { type: "spring", stiffness: 400, damping: 40 }
-            });
-        }
-    };
-
     return (
         <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 350, damping: 35, mass: 0.8 }}
-            className="fixed inset-0 z-50 flex flex-col overflow-hidden font-sans bg-black/40 backdrop-blur-3xl"
-            style={{ x, willChange: "transform" }}
+            initial={{ y: '100%' }}
+            animate={controls}
+            exit={{ y: '100%' }}
+            style={{ y: dragY }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
+            className="fixed inset-0 z-50 flex flex-col overflow-hidden font-sans bg-black/60 backdrop-blur-3xl"
 
-            // Horizontal drag for swipe-back
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={{ left: 0, right: 0.5 }}
-            onDragEnd={handleDragEnd}
-            dragListener={false}
-            dragControls={dragControls}
+            // Swipe Gestures (Down or Right to Close)
+            drag
+            dragConstraints={{ top: 0, bottom: 0, left: 0, right: 0 }}
+            dragElastic={{ top: 0, bottom: 0.5, left: 0, right: 0.5 }}
+            onDragEnd={(event, info) => {
+                const isSwipeDown = info.offset.y > 150 || info.velocity.y > 500;
+                const isSwipeRight = info.offset.x > 100 || info.velocity.x > 500;
+
+                if (isSwipeDown || isSwipeRight) {
+                    handleClose();
+                } else {
+                    controls.start({ x: 0, y: 0 });
+                }
+            }}
         >
-            {/* --- Glass Background --- */}
-            <div className="absolute inset-0 z-[-1]">
+            {/* Background Blurs */}
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                <div className="absolute inset-0 bg-black/60 z-10" />
                 <img
                     src={track.al?.picUrl}
-                    className="w-full h-full object-cover opacity-60 blur-[100px] scale-150"
-                    alt="bg"
+                    className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-50 scale-150"
                 />
-                <div className="absolute inset-0 bg-black/30" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 z-20" />
             </div>
 
-            {/* --- Edge Swipe Hit Area (Left side) --- */}
-            <div
-                className="absolute left-0 top-0 bottom-0 w-10 z-50 cursor-grab active:cursor-grabbing"
-                onPointerDown={(e) => dragControls.start(e)}
-                style={{ touchAction: 'none' }}
-            />
-
-            {/* --- Header --- */}
-            <div className="relative z-10 pt-4 px-6 flex justify-between items-center text-white">
-                <button onClick={onClose} className="p-2 -ml-2 active:scale-90 transition opacity-80 hover:opacity-100">
-                    <ChevronDown size={32} />
+            {/* Header */}
+            <div className="relative z-30 pt-4 px-6 flex justify-between items-center text-white h-16">
+                <button onClick={handleClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 active:bg-white/20 transition-colors backdrop-blur-md">
+                    <ChevronDown size={24} />
                 </button>
-                <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em]">正在播放</span>
-                </div>
-                {/* Placeholder for Lyrics/Details toggle if needed */}
-                <div className="w-8" />
+                <div className="w-10 h-1 bg-white/20 rounded-full mb-1" />
+                <div className="w-10" />
             </div>
 
-            {/* --- Vinyl / Cover Area --- */}
-            <div className="relative z-10 flex-1 flex flex-col items-center justify-center py-6">
-
-                {/* Needle Arm */}
-                <motion.div
-                    animate={{ rotate: isPlaying ? 0 : -25 }}
-                    className="absolute top-0 left-1/2 ml-[-12px] w-24 h-40 z-20 origin-[12px_12px] pointer-events-none transition-transform duration-500 ease-in-out"
-                    style={{ left: '50%', marginLeft: '10px', transformOrigin: '12px 12px' }}
-                >
-                    <img src="https://s3.music.126.net/mobile-new/img/needle-ab.png" className="w-[100px] h-[160px] object-contain" />
-                </motion.div>
-
-                {/* Rotating Vinyl */}
-                <motion.div
-                    className="relative w-[320px] h-[320px] rounded-full ring-8 ring-white/5 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.8)] bg-[#111] overflow-hidden"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 25, repeat: Infinity, ease: "linear", repeatType: "loop" }}
-                    style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
-                >
-                    {/* Vinyl Disc Background */}
-                    <div className="absolute inset-0 bg-[url('https://s3.music.126.net/mobile-new/img/disc.png')] bg-cover bg-center opacity-100" />
-
-                    {/* Album Art */}
-                    <div className="absolute inset-[18%] rounded-full overflow-hidden">
-                        <img
-                            src={track.al?.picUrl}
-                            className="w-full h-full object-cover"
-                            alt="Cover"
-                        />
-                    </div>
-                </motion.div>
-            </div>
-
-            {/* --- Info & Controls --- */}
-            <div className="relative z-10 px-8 pb-12 space-y-8">
-
-                {/* Title & Artist */}
-                <div className="flex justify-between items-end">
-                    <div className="flex flex-col min-w-0 pr-4">
-                        <h2 className="text-2xl font-bold text-white leading-tight truncate">
-                            {track.name}
-                        </h2>
-                        <span className="text-lg text-white/60 truncate font-medium mt-1">
-                            {track.ar?.map(a => a.name).join(', ')}
-                        </span>
-                    </div>
-                    <button
-                        onClick={handleLike}
-                        className={`flex-shrink-0 p-3 rounded-full transition-colors active:scale-95 ${isLiked ? 'text-red-500' : 'text-white/40'}`}
-                    >
-                        <Heart size={28} fill={isLiked ? "currentColor" : "none"} strokeWidth={isLiked ? 0 : 2} />
-                    </button>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="space-y-2 group">
-                    <div className="h-1 bg-white/20 rounded-full overflow-hidden relative cursor-pointer group-hover:h-1.5 transition-all">
+            {/* Content (Vinyl/Lyrics) */}
+            <div className="relative z-30 flex-1 flex flex-col items-center justify-center min-h-0" onClick={() => setViewMode(viewMode === 'vinyl' ? 'lyrics' : 'vinyl')}>
+                <AnimatePresence mode="wait">
+                    {viewMode === 'vinyl' ? (
                         <motion.div
-                            className="h-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-                            style={{ width: `${(progress / duration) * 100}%` }}
-                        />
+                            key="vinyl"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="relative w-full h-full flex items-center justify-center"
+                        >
+                            {/* Vinyl Disc */}
+                            <div className="relative w-[300px] h-[300px] sm:w-[340px] sm:h-[340px] rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-[#111] ring-4 ring-white/10 group">
+                                <motion.div
+                                    className="w-full h-full rounded-full overflow-hidden"
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 20, repeat: Infinity, ease: "linear", repeatType: "loop" }}
+                                    style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+                                >
+                                    <div className="absolute inset-0 bg-[url('https://s3.music.126.net/mobile-new/img/disc.png')] bg-cover bg-center opacity-90" />
+                                    <div className="absolute inset-[18%] rounded-full overflow-hidden border-4 border-[#111]">
+                                        <img
+                                            src={track.al?.picUrl}
+                                            className="w-full h-full object-cover"
+                                            alt="Cover"
+                                        />
+                                    </div>
+                                </motion.div>
+                            </div>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="lyrics"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="w-full h-full px-6 py-4"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <LyricsView songId={track.id} currentTime={progress} duration={duration} />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Footer / Controls */}
+            <div className="relative z-30 px-8 pb-12 space-y-8">
+
+                {/* Info Row */}
+                <div className="flex justify-between items-end">
+                    <div className="flex-1 min-w-0 mr-4 space-y-1">
+                        <div className="flex items-center space-x-2">
+                            <h2 className="text-2xl font-bold text-white leading-tight truncate drop-shadow-md">
+                                {track.name}
+                            </h2>
+                            {(track.sq || track.hr) && <span className="px-1 py-0.5 rounded text-[9px] border border-red-500 text-red-500 font-bold">SQ</span>}
+                        </div>
+                        <p className="text-lg text-white/70 truncate font-medium">
+                            {track.ar?.map(a => a.name).join(' / ')}
+                        </p>
                     </div>
-                    <div className="flex justify-between text-[10px] font-medium text-white/40 font-mono">
+                    <div className="flex items-center space-x-4 mb-1">
+                        <button onClick={handleLike} className="p-2 active:scale-90 transition-transform">
+                            <Heart size={28} className={isLiked ? "text-red-500 fill-red-500" : "text-white"} />
+                        </button>
+                        <button onClick={() => setShowComments(true)} className="p-2 active:scale-90 transition-transform text-white">
+                            <MessageSquare size={26} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Progress */}
+                <div className="space-y-2">
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden relative cursor-pointer hover:h-2 transition-all">
+                        <div className="absolute inset-y-0 left-0 bg-white/90 rounded-full shadow-[0_0_12px_rgba(255,255,255,0.8)]" style={{ width: `${(progress / duration) * 100}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs font-medium text-white/40 font-mono tracking-wide">
                         <span>{formatTime(progress)}</span>
                         <span>{formatTime(duration)}</span>
                     </div>
@@ -176,19 +172,18 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
                 <div className="flex items-center justify-between">
                     <button
                         onClick={onToggleMode}
-                        className={`transition active:scale-90 ${mode !== 'sequence' ? 'text-white' : 'text-white/40'}`}
+                        className={`p-2 transition-colors ${mode !== 'sequence' ? 'text-white' : 'text-white/40'}`}
                     >
-                        {mode === 'shuffle' ? <Shuffle size={20} /> : <Repeat size={20} className={mode === 'loop' ? 'text-red-500' : ''} />}
-                        {mode === 'loop' && <span className="absolute text-[8px] font-bold -mt-2 ml-3">1</span>}
+                        {mode === 'shuffle' ? <Shuffle size={22} /> : <Repeat size={22} className={mode === 'loop' ? 'text-red-500' : ''} />}
                     </button>
 
-                    <button onClick={onPrev} className="text-white hover:text-white/80 active:scale-90 transition">
-                        <SkipBack size={32} fill="currentColor" />
+                    <button onClick={onPrev} className="text-white hover:text-white/80 active:scale-90 transition-transform p-2">
+                        <SkipBack size={36} fill="currentColor" />
                     </button>
 
                     <button
                         onClick={onTogglePlay}
-                        className="w-20 h-20 bg-white text-black rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-95 transition-all hover:scale-105"
+                        className="w-20 h-20 bg-white text-black rounded-full flex items-center justify-center shadow-[0_0_24px_rgba(255,255,255,0.15)] active:scale-95 transition-transform hover:scale-105"
                     >
                         {isPlaying ? (
                             <Pause size={32} fill="currentColor" />
@@ -197,15 +192,22 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
                         )}
                     </button>
 
-                    <button onClick={onNext} className="text-white hover:text-white/80 active:scale-90 transition">
-                        <SkipForward size={32} fill="currentColor" />
+                    <button onClick={onNext} className="text-white hover:text-white/80 active:scale-90 transition-transform p-2">
+                        <SkipForward size={36} fill="currentColor" />
                     </button>
 
-                    <button className="text-white/40 hover:text-white active:scale-90 transition">
-                        <ListMusic size={20} />
+                    <button onClick={onOpenQueue} className="text-white hover:text-white/80 active:scale-90 transition-transform p-2">
+                        <ListMusic size={24} />
                     </button>
                 </div>
             </div>
+
+            {/* Comments Sheet */}
+            <AnimatePresence>
+                {showComments && (
+                    <CommentSheet songId={track.id} onClose={() => setShowComments(false)} />
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 };

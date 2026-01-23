@@ -5,6 +5,7 @@ import { Send, MoreVertical, RotateCcw, Copy, Trash2, User, PlusCircle, Mic, Ima
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
+import { storageService } from '../../../services/StorageService';
 import IOSPage from '../../../components/AppWindow/IOSPage';
 import { llmService } from '../../../services/LLMService';
 import NotificationService from '../../../services/NotificationService';
@@ -38,6 +39,8 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
     const [replyCount, setReplyCount] = useState("2-8"); // Default 2-8 range
     const [noPunctuation, setNoPunctuation] = useState(false); // New state
     const [avatarMode, setAvatarMode] = useState('none');
+    const [maxTokens, setMaxTokens] = useState(500); // Output length limit
+    const [translationMode, setTranslationMode] = useState({ enabled: false, showOriginal: true, style: 'inside', interaction: 'direct' });
     const [estTokens, setEstTokens] = useState(0);
 
     // Custom CSS Injection
@@ -49,6 +52,19 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
 
     const character = useLiveQuery(() => db.characters.get(characterId), [characterId]);
     const conversation = useLiveQuery(() => db.conversations.get(safeCid), [safeCid]);
+
+    // Force re-render when storage cache updates (for wallpaper changes)
+    const [storageVersion, setStorageVersion] = useState(0);
+    useEffect(() => {
+        return storageService.subscribe(() => setStorageVersion(v => v + 1));
+    }, []);
+
+    // Unified Wallpaper Resolver - now reactive to storage updates
+    const displayWallpaper = React.useMemo(() => {
+        return conversation?.wallpaper?.startsWith('idb:')
+            ? (storageService.getCachedBlobUrl(conversation.wallpaper) || conversation.wallpaper)
+            : conversation?.wallpaper;
+    }, [conversation?.wallpaper, storageVersion]);
     const messages = useLiveQuery(async () => {
         // Guard against invalid safeCid causing issues
         if ((!safeCid && safeCid !== 0) || (typeof safeCid === 'number' && isNaN(safeCid))) return [];
@@ -110,6 +126,9 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
             if (conversation.replyCount !== undefined) setReplyCount(conversation.replyCount);
             if (conversation.noPunctuation !== undefined) setNoPunctuation(conversation.noPunctuation);
             if (conversation.avatarMode) setAvatarMode(conversation.avatarMode);
+            if (conversation.avatarMode) setAvatarMode(conversation.avatarMode);
+            if (conversation.maxTokens !== undefined) setMaxTokens(conversation.maxTokens);
+            if (conversation.translationMode) setTranslationMode({ ...translationMode, ...conversation.translationMode });
         }
     }, [conversation]);
 
@@ -212,6 +231,9 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                 historyLimit,
                 replyCount,
                 noPunctuation,
+                replyCount,
+                noPunctuation,
+                translationMode,
                 userPersona // Correctly pass the reactive userPersona object
             });
 
@@ -223,13 +245,16 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
 
                     // Robust Regex to match ANY known command tag anywhere
                     // Captures: 1=Type, 2=Args
-                    // Robust Regex to match ANY known command tag anywhere
-                    // Captures: 1=Type, 2=Args
+                    // Note: Translation is excluded from streaming regex to avoid partial tag issues
                     const CMD_REGEX = /\[(Sticker|RedPacket|Transfer|Gift|Image|图片)[:：]\s*(.*?)\]/i;
 
                     // Helper to process buffer recursively
                     const processBuffer = (finalFlush = false) => {
-                        const match = buffer.match(CMD_REGEX);
+                        // Use extended regex on final flush to include Translation
+                        const regex = finalFlush
+                            ? /\[(Sticker|RedPacket|Transfer|Gift|Image|图片|Translation)[:：]\s*(.*?)\]/i
+                            : CMD_REGEX;
+                        const match = buffer.match(regex);
                         if (match) {
                             // 1. Text BEFORE command
                             if (match.index > 0) {
@@ -273,6 +298,12 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                     content: argsStr,
                                     metadata: { description: argsStr }
                                 });
+                            } else if (typeStr === 'translation') {
+                                pendingQueue.push({
+                                    type: 'translation',
+                                    content: argsStr,
+                                    metadata: { originalText: argsStr }
+                                });
                             }
 
                             // 3. Update Buffer (Remove processed part)
@@ -292,9 +323,16 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                 const parts = buffer.split('\n');
                                 while (parts.length > 1) {
                                     const p = parts.shift();
-                                    if (p.trim()) pendingQueue.push({ type: 'text', content: p });
+                                    // Don't flush if it looks like a potential Translation tag (incomplete)
+                                    if (p.trim() && !p.includes('[Translation')) {
+                                        pendingQueue.push({ type: 'text', content: p });
+                                    } else if (p.includes('[Translation')) {
+                                        // Keep it in buffer for finalFlush
+                                        parts.unshift(p);
+                                        break;
+                                    }
                                 }
-                                buffer = parts[0];
+                                buffer = parts.join('\n');
                             }
                         }
                     };
@@ -310,7 +348,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     // To be safe and quick: Duplicate the robust check for the final buffer chunk.
 
                     if (buffer.trim()) {
-                        const CMD_REGEX = /\[(Sticker|RedPacket|Transfer|Gift|Image|图片)[:：]\s*(.*?)\]/i;
+                        const CMD_REGEX = /\[(Sticker|RedPacket|Transfer|Gift|Image|图片|Translation)[:：]\s*(.*?)\]/i;
                         const processFinal = () => {
                             const match = buffer.match(CMD_REGEX);
                             if (match) {
@@ -335,6 +373,8 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                     pendingQueue.push({ type: 'gift', content: argsStr, metadata: { giftName: argsStr } });
                                 } else if (typeStr === 'image' || typeStr === '图片') {
                                     pendingQueue.push({ type: 'image', content: argsStr, metadata: { description: argsStr } });
+                                } else if (typeStr === 'translation') {
+                                    pendingQueue.push({ type: 'translation', content: argsStr, metadata: { originalText: argsStr } });
                                 }
 
                                 buffer = buffer.substring(match.index + match[0].length);
@@ -354,7 +394,8 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                 (error) => {
                     setIsTyping(false);
                     console.error(error);
-                }
+                },
+                { max_tokens: maxTokens > 0 ? maxTokens : undefined }
             );
 
         } catch (e) {
@@ -606,6 +647,9 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                 );
             case 'sticker':
                 return <StickerBubble stickerName={msg.content} />;
+            case 'translation':
+                // Use basic text bubble style
+                return <div className="whitespace-pre-wrap break-words text-sm opacity-80">{msg.content}</div>;
             default:
                 return <div>{msg.content}</div>;
         }
@@ -648,12 +692,12 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
         // Standard Text Bubbles
         if (isUser) {
             // Gradient Blue
-            return base + "bg-gradient-to-br from-[#5B7FFF] to-[#4A6EEE] text-white px-2.5 py-1.5 shadow-sm shadow-blue-500/10";
+            return base + "bg-gradient-to-br from-blue-500 via-blue-600 to-blue-500 text-white px-3 py-2 shadow-lg shadow-blue-500/20";
         } else if (msg.role === 'system') {
             return "";
         } else {
-            // AI Text (White/Dark Gray)
-            return base + "bg-white dark:bg-[#1C1C1E] text-gray-900 dark:text-white px-2.5 py-1.5 shadow-sm border border-black/5 dark:border-white/5";
+            // AI Text (White/Dark Gray with Glass Effect)
+            return base + "bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-xl text-gray-900 dark:text-white px-3 py-2 shadow-md border border-gray-200/50 dark:border-white/10";
         }
     };
 
@@ -779,10 +823,11 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     {/* 1. Base Dark Texture (Default) */}
                     <div className="absolute inset-0 bg-[#F2F2F7] dark:bg-[#000000]"></div>
                     {/* 2. Custom Wallpaper (If set) */}
-                    {conversation?.wallpaper && (
+                    {/* 2. Custom Wallpaper (If set) */}
+                    {displayWallpaper && (
                         <div
                             className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-500"
-                            style={{ backgroundImage: `url(${conversation.wallpaper})` }}
+                            style={{ backgroundImage: `url(${displayWallpaper})` }}
                         />
                     )}
                     {/* 3. Overlay for text readability (Optional) */}
@@ -842,7 +887,12 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                     {msg.role === 'assistant' && avatarMode !== 'none' && (
                                         <div className="w-8 shrink-0 flex justify-center mt-0.5">
                                             {(avatarMode !== 'smart' || (!messages[index - 1] || messages[index - 1].role !== 'assistant')) && (
-                                                <Avatar src={character?.avatar} name={character?.name} size={32} className="rounded-full shadow-sm" />
+                                                <Avatar
+                                                    src={character ? (storageService.getCachedBlobUrl('characters', character.id) || character.avatar) : null}
+                                                    name={character?.name}
+                                                    size={32}
+                                                    className="rounded-full shadow-sm"
+                                                />
                                             )}
                                         </div>
                                     )}
@@ -900,7 +950,12 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                     {msg.role === 'user' && avatarMode !== 'none' && avatarMode !== 'ai_only' && (
                                         <div className="w-8 shrink-0 flex justify-center mt-0.5">
                                             {(avatarMode !== 'smart' || (!messages[index - 1] || messages[index - 1].role !== 'user')) && (
-                                                <Avatar src={userPersona?.avatar} name={userPersona?.userName || 'Me'} size={32} className="rounded-full shadow-sm" />
+                                                <Avatar
+                                                    src={userPersona ? (storageService.getCachedBlobUrl('userPersonas', userPersona.id) || userPersona.avatar) : null}
+                                                    name={userPersona?.userName || 'Me'}
+                                                    size={32}
+                                                    className="rounded-full shadow-sm"
+                                                />
                                             )}
                                         </div>
                                     )}
@@ -1083,29 +1138,37 @@ const SettingsDrawer = ({ isOpen, onClose, initialHistory, initialReply, initial
         return db.conversations.get(safeId);
     }, [conversationId]); // Re-run when prompt ID changes
 
+    // Reactive Storage
+    const [storageVersion, setStorageVersion] = React.useState(0);
+    React.useEffect(() => {
+        return storageService.subscribe(() => setStorageVersion(v => v + 1));
+    }, []);
+
+    // Unified Wallpaper Resolver
+    const displayWallpaper = React.useMemo(() => {
+        if (!conversation?.wallpaper) return null;
+        if (conversation.wallpaper.startsWith('idb:')) {
+            const cached = storageService.getCachedBlobUrl(conversation.wallpaper);
+            return cached || null;
+        }
+        return conversation.wallpaper;
+    }, [conversation?.wallpaper, storageVersion]);
+
     // Handle Wallpaper Upload (Blob)
-    const handleWallpaperUpload = (e) => {
+    const handleWallpaperUpload = async (e) => {
         const file = e.target.files[0];
         console.log('[Wallpaper] File selected:', file?.name, 'safeId:', safeId);
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const blobUrl = ev.target.result;
-                console.log('[Wallpaper] Blob URL ready, length:', blobUrl?.length, 'updating DB for safeId:', safeId);
-                // Immediate DB Update
-                if (safeId && typeof safeId !== 'object') {
-                    try {
-                        await db.conversations.update(safeId, { wallpaper: blobUrl });
-                        console.log('[Wallpaper] DB Update SUCCESS for id:', safeId);
-                        triggerHaptic();
-                    } catch (err) {
-                        console.error('[Wallpaper] DB Update FAILED:', err);
-                    }
-                } else {
-                    console.error('[Wallpaper] Invalid safeId:', safeId);
-                }
-            };
-            reader.readAsDataURL(file);
+        if (file && safeId) {
+            try {
+                await storageService.saveBlob('chatWallpapers', safeId, file, 'data');
+                const ref = storageService.getReference('chatWallpapers', safeId);
+                await db.conversations.update(safeId, { wallpaper: ref });
+                triggerHaptic();
+                console.log('[Wallpaper] Upload SUCCESS for id:', safeId);
+            } catch (err) {
+                console.error('[Wallpaper] Upload FAILED:', err);
+                alert('背景上传失败');
+            }
         }
     };
 
@@ -1236,8 +1299,8 @@ const SettingsDrawer = ({ isOpen, onClose, initialHistory, initialReply, initial
                                     <div className="flex gap-3">
                                         {/* Local File */}
                                         <label className="flex-1 h-20 bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer border border-dashed border-gray-300 dark:border-white/10 hover:bg-gray-100 transition-colors relative overflow-hidden">
-                                            {conversation?.wallpaper ? (
-                                                <div className="absolute inset-0 bg-cover bg-center opacity-50" style={{ backgroundImage: `url(${conversation.wallpaper})` }} />
+                                            {displayWallpaper ? (
+                                                <div className="absolute inset-0 bg-cover bg-center opacity-50" style={{ backgroundImage: `url(${displayWallpaper})` }} />
                                             ) : null}
                                             <div className="relative z-10 flex flex-col items-center">
                                                 <ImageIcon size={18} className="text-gray-400" />

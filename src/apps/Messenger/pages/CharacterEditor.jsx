@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Save, X, Trash2, ChevronRight, Image as ImageIcon, Link, User } from 'lucide-react';
+import { Camera, Save, X, Trash2, ChevronRight, Image as ImageIcon, Link, User, Globe, Sparkles, MessageCircle, Heart, FileText, Book } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import IOSPage from '../../../components/AppWindow/IOSPage';
 import { triggerHaptic } from '../../../utils/haptics';
+import { storageService } from '../../../services/StorageService';
+import { STANDARD_TIMEZONES } from '../../../utils/timezones';
+
+// Simple Field component
+const Field = ({ label, icon, children }) => (
+    <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+        <div className="flex items-center gap-2 mb-2">
+            <span className="text-[16px]">{icon}</span>
+            <label className="text-[12px] font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+        </div>
+        {children}
+    </div>
+);
 
 const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
     const isNew = !characterId;
@@ -11,21 +24,22 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
         characterId ? db.characters.get(characterId) : Promise.resolve(null)
         , [characterId]);
 
+    const boundWorldBooks = useLiveQuery(() =>
+        characterId ? db.worldBookEntries.where('characterId').equals(parseInt(characterId) || -1).toArray() : Promise.resolve([])
+        , [characterId]);
+
     const [form, setForm] = useState({
         name: '',
-        nickname: '',
-        avatar: '', // Blob or String
-        userAvatar: '', // Blob or String (New)
+        nickname: '', // Remark
+        avatar: '',
         description: '',
         relationship: '',
-        firstMessage: '',
-        personality: '',
-        avatarType: 'url', // 'url' or 'local'
-        userAvatarType: 'url' // 'url' or 'local'
+        firstMessage: '', // Kept as it is essential for LLM chat start
+        timezone: 'Asia/Shanghai',
+        avatarType: 'url',
     });
 
     const [avatarPreview, setAvatarPreview] = useState(null);
-    const [userAvatarPreview, setUserAvatarPreview] = useState(null);
 
     // Initial Load
     useEffect(() => {
@@ -33,7 +47,12 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
             setForm({
                 ...character,
                 avatarType: character.avatar instanceof Blob ? 'local' : 'url',
-                avatar: character.avatar || ''
+                avatar: character.avatar || '',
+                timezone: character.timezone || 'Asia/Shanghai',
+                nickname: character.nickname || '',
+                relationship: character.relationship || '',
+                firstMessage: character.firstMessage || '',
+                description: character.description || ''
             });
         }
     }, [character]);
@@ -45,11 +64,17 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
             url = URL.createObjectURL(form.avatar);
             setAvatarPreview(url);
         } else {
-            setAvatarPreview(form.avatar);
+            if (typeof form.avatar === 'string' && form.avatar.startsWith('idb:')) {
+                const cached = storageService.getCachedBlobUrl(form.avatar);
+                if (cached) {
+                    setAvatarPreview(cached);
+                    return;
+                }
+            }
+            setAvatarPreview(form.avatar || null);
         }
         return () => url && URL.revokeObjectURL(url);
     }, [form.avatar]);
-
 
     // Image Compression Helper
     const compressImage = (file) => {
@@ -61,31 +86,15 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
                 img.src = event.target.result;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    const MAX_SIZE = 500; // Avatar doesn't need to be huge
+                    const MAX_SIZE = 500;
                     let width = img.width;
                     let height = img.height;
-
-                    if (width > height) {
-                        if (width > MAX_SIZE) {
-                            height *= MAX_SIZE / width;
-                            width = MAX_SIZE;
-                        }
-                    } else {
-                        if (height > MAX_SIZE) {
-                            width *= MAX_SIZE / height;
-                            height = MAX_SIZE;
-                        }
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
+                    if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
+                    else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+                    canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-
-                    canvas.toBlob((blob) => {
-                        if (blob) resolve(blob);
-                        else reject(new Error('Canvas toBlob failed'));
-                    }, 'image/jpeg', 0.8);
+                    canvas.toBlob((blob) => { if (blob) resolve(blob); else reject(new Error('Canvas toBlob failed')); }, 'image/jpeg', 0.8);
                 };
                 img.onerror = reject;
             };
@@ -100,13 +109,15 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
     const handleSave = async () => {
         if (!form.name) return alert('请输入姓名');
 
-        const data = {
-            ...form,
-            updatedAt: Date.now()
-        };
-        // Remove UI-only flags
+        const data = { ...form, updatedAt: Date.now() };
         delete data.avatarType;
-        delete data.userAvatarType;
+
+        // Separate Blob from main payload to prevent iOS DB crash
+        let blobToSave = null;
+        if (data.avatar instanceof Blob) {
+            blobToSave = data.avatar;
+            delete data.avatar; // Don't save Blob directly in first pass
+        }
 
         try {
             let id = characterId;
@@ -116,13 +127,23 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
                 await db.characters.update(id, data);
             }
 
+            if (blobToSave) {
+                // 1. Save to dedicated 'blobs' table (Prevent iOS corruption on main table)
+                await storageService.saveBlob('blobs', id, blobToSave, 'data');
+
+                // 2. Update character with reference
+                const ref = `idb:blobs:${id}`;
+                await db.characters.update(id, { avatar: ref });
+            } else if (data.avatarLink) {
+                // Handle URL case if needed, but 'avatar' field in data should cover it if string
+            }
             triggerHaptic();
             if (onStartChat && isNew) {
                 const existing = await db.conversations.where({ characterId: id }).first();
                 if (existing) {
                     onStartChat(existing.id, id);
                 } else {
-                    const convId = await db.conversations.add({ characterId: id, title: data.name, updatedAt: Date.now() });
+                    const convId = await db.conversations.add({ characterId: id, title: data.nickname || data.name, updatedAt: Date.now() });
                     onStartChat(convId, id);
                 }
             } else {
@@ -134,12 +155,13 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
         }
     };
 
-    const handleImageUpload = async (e, field) => {
+    const handleImageUpload = async (e) => {
         const file = e.target.files[0];
         if (file) {
             try {
                 const blob = await compressImage(file);
-                handleChange(field, blob);
+                handleChange('avatar', blob);
+                handleChange('avatarType', 'local');
             } catch (err) {
                 alert('图片处理失败');
             }
@@ -147,10 +169,7 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
     };
 
     const rightButton = (
-        <button
-            onClick={handleSave}
-            className="px-3 py-1.5 bg-[#5B7FFF] text-white text-[14px] font-semibold rounded-full shadow-md shadow-[#5B7FFF]/20 active:scale-95 transition-transform"
-        >
+        <button onClick={handleSave} className="px-3 py-1.5 bg-gradient-to-r from-gray-400 to-gray-500 text-white text-[14px] font-semibold rounded-full shadow-md shadow-gray-400/20 active:scale-95 transition-transform">
             保存
         </button>
     );
@@ -158,69 +177,91 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
     return (
         <IOSPage title={isNew ? '添加联系人' : '编辑联系人'} onBack={onBack} rightButton={rightButton}>
             <div className="pb-24 bg-[#F2F2F7] dark:bg-black min-h-full">
-                {/* Character Card */}
+                {/* Header / Avatar Area */}
                 <div className="mx-4 mt-4 bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-sm border border-gray-200/50 dark:border-white/5 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-[#5B7FFF]"></div>
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400 to-gray-500"></div>
                     <div className="flex items-center gap-4">
+                        {/* Clickable Avatar Area (Synced with PersonaEditor) */}
                         <div className="relative group shrink-0">
-                            <div className="w-[72px] h-[72px] rounded-2xl bg-gray-100 dark:bg-[#2C2C2E] overflow-hidden border border-gray-200 dark:border-white/10 shadow-inner">
+                            <div
+                                onClick={() => {
+                                    triggerHaptic();
+                                    // Hidden File Input Trigger via button Logic below, or direct click
+                                    // For consistency, we use the visual buttons below for specific actions, 
+                                    // or click main area to toggle? 
+                                    // Let's stick to the visual buttons below being the main "explicit" controls,
+                                    // but clicking the avatar Image itself often expects "View" or "Change".
+                                }}
+                                className="w-[76px] h-[76px] rounded-full bg-gray-100 dark:bg-[#2C2C2E] overflow-hidden border-4 border-white dark:border-[#2C2C2E] shadow-lg flex items-center justify-center cursor-pointer relative"
+                            >
                                 {avatarPreview ? (
                                     <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                        <Camera size={24} />
-                                    </div>
+                                    <User size={32} className="text-gray-300" />
                                 )}
                             </div>
 
-                            {/* Type Toggle */}
-                            <div className="absolute -bottom-2 -right-2 flex gap-1 bg-white dark:bg-[#2C2C2E] p-1 rounded-full shadow-md border border-gray-100 dark:border-white/10 z-10">
+                            {/* Option Buttons (Floating below) */}
+                            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+                                <button
+                                    onClick={() => handleChange('avatarType', 'local')}
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center shadow-md border border-white dark:border-black transition-all ${form.avatarType === 'local' ? 'bg-gray-500 text-white scale-110' : 'bg-white dark:bg-[#3A3A3C] text-gray-400'}`}
+                                >
+                                    <ImageIcon size={12} strokeWidth={2.5} />
+                                    {form.avatarType === 'local' && (
+                                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleImageUpload} />
+                                    )}
+                                </button>
                                 <button
                                     onClick={() => handleChange('avatarType', 'url')}
-                                    className={`p-1.5 rounded-full transition-colors ${form.avatarType === 'url' ? 'bg-[#5B7FFF] text-white' : 'text-gray-400'}`}
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center shadow-md border border-white dark:border-black transition-all ${form.avatarType === 'url' ? 'bg-gray-500 text-white scale-110' : 'bg-white dark:bg-[#3A3A3C] text-gray-400'}`}
                                 >
-                                    <Link size={12} />
+                                    <Link size={12} strokeWidth={2.5} />
                                 </button>
-                                <label className={`p-1.5 rounded-full transition-colors cursor-pointer ${form.avatarType === 'local' ? 'bg-[#5B7FFF] text-white' : 'text-gray-400'}`}>
-                                    <ImageIcon size={12} />
-                                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'avatar')} onClick={() => handleChange('avatarType', 'local')} />
-                                </label>
                             </div>
                         </div>
 
-                        <div className="flex-1 space-y-3 min-w-0">
-                            <input
-                                type="text"
-                                value={form.name}
-                                onChange={e => handleChange('name', e.target.value)}
-                                placeholder="角色姓名"
-                                className="w-full text-[20px] font-bold bg-transparent placeholder-gray-300 dark:text-white focus:outline-none"
-                            />
-                            {form.avatarType === 'url' && (
+                        <div className="flex-1 space-y-3 min-w-0 pt-2">
+                            <div className="relative">
+                                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">联系人姓名</label>
                                 <input
                                     type="text"
-                                    value={form.avatar}
-                                    onChange={e => handleChange('avatar', e.target.value)}
-                                    placeholder="头像 URL..."
-                                    className="w-full text-[13px] bg-gray-50 dark:bg-[#2C2C2E] rounded-lg px-2 py-1.5 text-gray-600 dark:text-gray-300 focus:outline-none transition-colors focus:bg-white dark:focus:bg-black border border-transparent focus:border-blue-500/30"
+                                    value={form.name}
+                                    onChange={e => handleChange('name', e.target.value)}
+                                    placeholder="输入姓名..."
+                                    className="w-full text-[22px] font-bold bg-transparent placeholder-gray-300 dark:text-white focus:outline-none"
                                 />
+                            </div>
+
+                            {form.avatarType === 'url' && (
+                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <input
+                                        type="text"
+                                        value={form.avatar}
+                                        onChange={e => handleChange('avatar', e.target.value)}
+                                        placeholder="粘贴图片链接..."
+                                        className="w-full text-[14px] bg-gray-50 dark:bg-[#2C2C2E] rounded-xl px-3 py-2 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 border border-transparent transition-all"
+                                    />
+                                </div>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* Info Fields */}
+                {/* Form Fields */}
                 <div className="mx-4 mt-5 space-y-4">
-                    <Field label="人设描述 (Persona)" icon="📝">
-                        <textarea
-                            value={form.description}
-                            onChange={e => handleChange('description', e.target.value)}
-                            placeholder="描述角色的性格、外貌、背景故事..."
-                            className="w-full h-32 bg-transparent resize-none text-[15px] text-gray-800 dark:text-white placeholder-gray-300 focus:outline-none leading-relaxed"
+
+                    <Field label="备注名 (聊天列表显示)" icon={<Sparkles size={16} className="text-orange-500" />}>
+                        <input
+                            type="text"
+                            value={form.nickname}
+                            onChange={e => handleChange('nickname', e.target.value)}
+                            placeholder=""
+                            className="w-full bg-transparent text-[15px] text-gray-800 dark:text-white placeholder-gray-300 focus:outline-none"
                         />
                     </Field>
 
-                    <Field label="与用户的关系" icon="❤️">
+                    <Field label="与用户的关系" icon={<Heart size={16} className="text-pink-500" />}>
                         <input
                             type="text"
                             value={form.relationship}
@@ -230,47 +271,55 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
                         />
                     </Field>
 
-                    <Field label="第一条消息" icon="💬">
+                    <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Globe size={16} className="text-gray-500" />
+                            <label className="text-[12px] font-medium text-gray-500 uppercase tracking-wide">所在时区</label>
+                        </div>
+                        <div className="flex items-center gap-3 bg-gray-50 dark:bg-[#2C2C2E] rounded-xl px-4 py-3">
+                            <select
+                                value={form.timezone || 'Asia/Shanghai'}
+                                onChange={e => handleChange('timezone', e.target.value)}
+                                className="flex-1 bg-transparent text-[14px] text-gray-900 dark:text-white focus:outline-none appearance-none truncate"
+                            >
+                                {STANDARD_TIMEZONES.map(tz => (
+                                    <option key={tz.value} value={tz.value}>{tz.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <Field label="人物详细设定 / 背景故事" icon={<FileText size={16} className="text-gray-500" />}>
                         <textarea
-                            value={form.firstMessage}
-                            onChange={e => handleChange('firstMessage', e.target.value)}
-                            placeholder="开始聊天时角色发送的第一句话..."
-                            className="w-full h-24 bg-transparent resize-none text-[15px] text-gray-800 dark:text-white placeholder-gray-300 focus:outline-none leading-relaxed"
+                            value={form.description}
+                            onChange={e => handleChange('description', e.target.value)}
+                            placeholder="请尽可能详细地描述角色的性格、经历、外貌特征等..."
+                            className="w-full h-48 bg-transparent resize-none text-[15px] text-gray-800 dark:text-white placeholder-gray-300 focus:outline-none leading-relaxed"
                         />
                     </Field>
-                </div>
 
-                {/* Delete Button */}
-                {!isNew && (
-                    <div className="mx-4 mt-8">
-                        <button
-                            onClick={async () => {
-                                if (confirm('确定删除此联系人吗？聊天记录也会被删除。')) {
-                                    await db.conversations.where({ characterId }).delete();
-                                    await db.messengerMessages.where({ conversationId: characterId }).delete();
-                                    await db.characters.delete(characterId);
-                                    onBack();
-                                }
-                            }}
-                            className="w-full py-4 bg-white dark:bg-[#1C1C1E] text-red-500 rounded-2xl font-medium shadow-sm active:scale-[0.98] transition-all"
-                        >
-                            删除联系人
-                        </button>
-                    </div>
-                )}
+
+                    {/* World Book (Read Only) */}
+                    {boundWorldBooks?.length > 0 && (
+                        <div className="mt-6">
+                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3 px-1">关联的世界书</h3>
+                            <div className="space-y-2">
+                                {boundWorldBooks.map(entry => (
+                                    <div key={entry.id} className="bg-white dark:bg-[#1C1C1E] p-3 rounded-xl border border-gray-100 dark:border-white/5 flex items-center gap-3">
+                                        <Book size={16} className="text-gray-400" />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-bold text-[13px] text-gray-900 dark:text-white truncate">{entry.title}</div>
+                                            <div className="text-[11px] text-gray-500 truncate">{entry.keys}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </IOSPage>
     );
 };
-
-const Field = ({ label, icon, children }) => (
-    <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-sm border border-gray-200/50 dark:border-white/5">
-        <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">{icon}</span>
-            <span className="text-[14px] font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
-        </div>
-        {children}
-    </div>
-);
 
 export default CharacterEditor;

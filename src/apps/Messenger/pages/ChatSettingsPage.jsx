@@ -7,13 +7,22 @@ import IOSPage from '../../../components/AppWindow/IOSPage';
 import { llmService } from '../../../services/LLMService';
 import { Image as ImageIcon, RotateCcw, MessageCircle, Sparkles, User, Trash2 } from 'lucide-react';
 
+import { storageService } from '../../../services/StorageService';
+
 const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) => {
     // Local State
     const [historyStr, setHistoryStr] = useState('20');
     const [replyMinStr, setReplyMinStr] = useState('2');
     const [replyMaxStr, setReplyMaxStr] = useState('8');
+    const [maxTokensStr, setMaxTokensStr] = useState('500');
     const [noPunctuation, setNoPunctuation] = useState(false);
     const [avatarMode, setAvatarMode] = useState('none'); // none, ai_only, both, smart
+    const [translationMode, setTranslationMode] = useState({
+        enabled: false,
+        showOriginal: true,
+        style: 'inside', // inside, outside
+        interaction: 'direct' // direct, click
+    });
     const [tokens, setTokens] = useState(0);
 
     // Safe ID for database
@@ -25,74 +34,73 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
         return db.conversations.get(safeId);
     }, [safeId]);
 
-    // Sync local state with conversation data
+    // Local Wallpaper Preview (Optimistic UI)
+    const [wallpaperPreview, setWallpaperPreview] = useState(null);
+
+    // Initial Sync for Wallpaper & Settings
     useEffect(() => {
         if (conversation) {
-            if (conversation.historyLimit !== undefined) {
-                setHistoryStr(conversation.historyLimit === 0 ? '' : String(conversation.historyLimit));
-            }
-            if (conversation.replyCount) {
-                const str = String(conversation.replyCount);
-                if (str.includes('-')) {
-                    const [min, max] = str.split('-');
-                    setReplyMinStr(min);
-                    setReplyMaxStr(max);
+            // Wallpaper
+            if (conversation.wallpaper) {
+                if (conversation.wallpaper.startsWith('idb:')) {
+                    const cached = storageService.getCachedBlobUrl(conversation.wallpaper);
+                    setWallpaperPreview(cached || null);
                 } else {
-                    setReplyMinStr(str);
-                    setReplyMaxStr(str);
+                    setWallpaperPreview(conversation.wallpaper);
                 }
             }
-            if (conversation.noPunctuation !== undefined) {
-                setNoPunctuation(conversation.noPunctuation);
+
+            // Sync Settings
+            if (conversation.historyLimit !== undefined) setHistoryStr(String(conversation.historyLimit));
+            if (conversation.replyCount) {
+                const [min, max] = conversation.replyCount.split('-');
+                if (min) setReplyMinStr(min);
+                if (max) setReplyMaxStr(max);
             }
-            if (conversation.avatarMode) {
-                setAvatarMode(conversation.avatarMode);
-            }
+            if (conversation.maxTokens) setMaxTokensStr(String(conversation.maxTokens));
+            if (conversation.noPunctuation !== undefined) setNoPunctuation(conversation.noPunctuation);
+            if (conversation.noPunctuation !== undefined) setNoPunctuation(conversation.noPunctuation);
+            if (conversation.avatarMode) setAvatarMode(conversation.avatarMode);
+            if (conversation.translationMode) setTranslationMode({
+                ...translationMode,
+                ...conversation.translationMode
+            });
         }
     }, [conversation]);
 
-    // Live Token Preview
-    useEffect(() => {
-        const timer = setTimeout(async () => {
-            try {
-                const h = parseInt(historyStr) || 0;
-                const r = `${replyMinStr || 1}-${replyMaxStr || 1}`;
-                const context = await llmService.buildContext(characterId, conversationId, '', {
-                    historyLimit: h,
-                    replyCount: r,
-                    noPunctuation
-                });
-                const fullText = context.map(m => m.content).join('\n');
-                const count = llmService.estimateTokens(fullText);
-                setTokens(count);
-            } catch (e) {
-                console.error('Token estimation failed', e);
-            }
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [historyStr, replyMinStr, replyMaxStr, noPunctuation, characterId, conversationId]);
-
     // Handlers
-    const handleWallpaperUpload = (e) => {
+    const handleWallpaperUpload = async (e) => {
         const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const blobUrl = ev.target.result;
-                if (safeId) {
-                    await db.conversations.update(safeId, { wallpaper: blobUrl });
-                    triggerHaptic();
-                }
-            };
-            reader.readAsDataURL(file);
+        if (file && safeId) {
+            // Optimistic UI
+            const objectUrl = URL.createObjectURL(file);
+            setWallpaperPreview(objectUrl);
+
+            try {
+                await storageService.saveBlob('chatWallpapers', safeId, file, 'data');
+                const ref = storageService.getReference('chatWallpapers', safeId);
+                await db.conversations.update(safeId, { wallpaper: ref });
+                triggerHaptic();
+            } catch (err) {
+                console.error('Wallpaper upload failed', err);
+                alert('背景上传失败');
+            }
         }
     };
 
     const handleWallpaperUrl = async (url) => {
-        if (safeId) {
+        if (safeId && url) { // Only update if URL is not empty
+            setWallpaperPreview(url);
             await db.conversations.update(safeId, { wallpaper: url });
         }
     };
+
+    const clearWallpaper = async () => {
+        if (safeId) {
+            setWallpaperPreview(null);
+            await db.conversations.update(safeId, { wallpaper: null });
+        }
+    }
 
     const handleSave = async () => {
         const h = parseInt(historyStr) || 0;
@@ -107,8 +115,11 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
         await db.conversations.update(safeId, {
             historyLimit: h,
             replyCount: `${min}-${max}`,
+            maxTokens: parseInt(maxTokensStr) || 500,
             noPunctuation,
-            avatarMode
+            noPunctuation,
+            avatarMode,
+            translationMode
         });
         triggerHaptic();
         onBack();
@@ -130,13 +141,13 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                 <div className="flex-1 overflow-y-auto p-5 space-y-6">
                     {/* Token Counter - Premium Card */}
                     <div className="relative bg-gradient-to-br from-white to-gray-50 dark:from-[#2C2C2E] dark:to-[#1A1A1C] rounded-2xl p-4 shadow-lg border border-gray-100 dark:border-white/5 overflow-hidden">
-                        <div className="absolute top-0 right-0 w-20 h-20 bg-[#5B7FFF]/10 rounded-full blur-xl" />
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-gray-400/10 rounded-full blur-xl" />
                         <div className="relative flex justify-between items-center mb-3">
                             <span className="text-sm font-semibold text-gray-500 flex items-center gap-1.5">
-                                <Sparkles size={14} className="text-[#5B7FFF]" />
+                                <Sparkles size={14} className="text-gray-500" />
                                 预计消耗
                             </span>
-                            <span className={`text-lg font-bold font-mono ${tokens > 50000 ? 'text-red-500' : 'text-[#5B7FFF]'}`}>
+                            <span className={`text-lg font-bold font-mono ${tokens > 50000 ? 'text-red-500' : 'text-gray-600'}`}>
                                 {tokens.toLocaleString()} <span className="text-xs font-normal opacity-60">Tokens</span>
                             </span>
                         </div>
@@ -144,7 +155,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                             <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.min((tokens / 50000) * 100, 100)}%` }}
-                                className={`h-full rounded-full ${tokens > 50000 ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-[#5B7FFF] to-[#A78BFA]'}`}
+                                className={`h-full rounded-full ${tokens > 50000 ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}
                             />
                         </div>
                         <p className="text-[10px] text-gray-400 mt-2 text-right">上限: 50,000</p>
@@ -153,7 +164,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                     {/* Section: Visual Settings */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 pl-1">
-                            <div className="h-4 w-1 rounded-full bg-gradient-to-b from-indigo-400 to-indigo-600" />
+                            <div className="h-4 w-1 rounded-full bg-gradient-to-b from-gray-400 to-gray-500" />
                             <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">视觉设置</h3>
                         </div>
 
@@ -169,8 +180,8 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                             <div className="flex gap-3">
                                 {/* Local File */}
                                 <label className="flex-1 h-20 bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer border border-dashed border-gray-300 dark:border-white/10 hover:bg-gray-100 transition-colors relative overflow-hidden">
-                                    {conversation?.wallpaper ? (
-                                        <div className="absolute inset-0 bg-cover bg-center opacity-50" style={{ backgroundImage: `url(${conversation.wallpaper})` }} />
+                                    {wallpaperPreview ? (
+                                        <div className="absolute inset-0 bg-cover bg-center opacity-50" style={{ backgroundImage: `url(${wallpaperPreview})` }} />
                                     ) : null}
                                     <div className="relative z-10 flex flex-col items-center">
                                         <ImageIcon size={18} className="text-gray-400" />
@@ -184,11 +195,15 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                                     <input
                                         className="w-full bg-gray-50 dark:bg-black/30 rounded-xl px-3 py-2 text-xs dark:text-white outline-none"
                                         placeholder="或输入图片 URL..."
+                                        // Use key to force re-render if needed, but here defaultValue is enough if component mounts fresh. 
+                                        // However, if we want input to reflect manual deletes, we might need controlled component?
+                                        // User said "clicking input clears upload", we fixed handleWallpaperUrl behavior.
+                                        // Let's keep it simple.
                                         defaultValue={conversation?.wallpaper?.startsWith('http') ? conversation.wallpaper : ''}
                                         onBlur={(e) => handleWallpaperUrl(e.target.value)}
                                     />
-                                    {conversation?.wallpaper && (
-                                        <button onClick={() => handleWallpaperUrl('')} className="text-[10px] text-red-500 text-right">
+                                    {wallpaperPreview && (
+                                        <button onClick={clearWallpaper} className="text-[10px] text-red-500 text-right">
                                             清除背景
                                         </button>
                                     )}
@@ -233,8 +248,8 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                                         key={mode.id}
                                         onClick={() => { setAvatarMode(mode.id); triggerHaptic(); }}
                                         className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${avatarMode === mode.id
-                                                ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/10'
-                                                : 'border-transparent bg-gray-50 dark:bg-black/20 hover:bg-gray-100'
+                                            ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/10'
+                                            : 'border-transparent bg-gray-50 dark:bg-black/20 hover:bg-gray-100'
                                             }`}
                                     >
                                         <span className={`text-sm font-bold ${avatarMode === mode.id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>
@@ -250,7 +265,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                     {/* Section: Logic Control */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 pl-1">
-                            <div className="h-4 w-1 rounded-full bg-gradient-to-b from-blue-400 to-purple-600" />
+                            <div className="h-4 w-1 rounded-full bg-gradient-to-b from-gray-400 to-gray-500" />
                             <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">逻辑控制</h3>
                         </div>
 
@@ -263,7 +278,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                                     </div>
                                     <span className="text-[15px] font-medium text-gray-900 dark:text-white">记忆深度</span>
                                 </div>
-                                <span className="text-sm font-bold text-[#5B7FFF]">{history === 0 ? '∞' : history}</span>
+                                <span className="text-sm font-bold text-gray-600">{history === 0 ? '∞' : history}</span>
                             </div>
 
                             <div className="flex gap-2">
@@ -272,7 +287,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                                         key={val}
                                         onClick={() => setHistoryStr(val === 0 ? '' : String(val))}
                                         className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${history === val
-                                            ? 'bg-[#5B7FFF] text-white shadow-md'
+                                            ? 'bg-gray-600 text-white shadow-md'
                                             : 'bg-gray-100 dark:bg-black/30 text-gray-600 dark:text-gray-400'}`}
                                     >
                                         {val === 0 ? '全量' : val}
@@ -287,7 +302,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                                     value={historyStr}
                                     onChange={(e) => setHistoryStr(e.target.value)}
                                     placeholder="∞"
-                                    className="w-20 text-right bg-transparent text-sm font-bold text-gray-900 dark:text-white outline-none border-b border-transparent focus:border-[#5B7FFF] transition-colors"
+                                    className="w-20 text-right bg-transparent text-sm font-bold text-gray-900 dark:text-white outline-none border-b border-transparent focus:border-gray-400 transition-colors"
                                 />
                             </div>
                         </div>
@@ -324,6 +339,35 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                             </div>
                         </div>
 
+                        {/* Max Tokens */}
+                        <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-white/5 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center text-green-500">
+                                        <Sparkles size={16} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[15px] font-medium text-gray-900 dark:text-white">输出长度限制</span>
+                                        <span className="text-[10px] text-gray-400">限制 AI 回复的总 Token 数</span>
+                                    </div>
+                                </div>
+                                <span className="text-sm font-bold text-green-500">{parseInt(maxTokensStr) || 0}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="5000"
+                                step="100"
+                                value={parseInt(maxTokensStr) || 500}
+                                onChange={e => setMaxTokensStr(e.target.value)}
+                                className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+                            />
+                            <div className="flex justify-between text-[10px] text-gray-400">
+                                <span>0 (无限制)</span>
+                                <span>5000</span>
+                            </div>
+                        </div>
+
                         {/* No Punctuation Toggle */}
                         <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-white/5 flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -344,10 +388,89 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                         </div>
                     </div>
 
+                    {/* Bilingual Settings */}
+                    <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-white/5 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-500">
+                                    <Sparkles size={16} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[15px] font-medium text-gray-900 dark:text-white">双语沟通</span>
+                                    <span className="text-[10px] text-gray-400">AI 使用母语回复并附带翻译</span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setTranslationMode(prev => ({ ...prev, enabled: !prev.enabled }));
+                                    triggerHaptic();
+                                }}
+                                className={`w-12 h-7 rounded-full transition-colors relative ${translationMode.enabled ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-600'}`}
+                            >
+                                <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${translationMode.enabled ? 'translate-x-5' : ''}`} />
+                            </button>
+                        </div>
+
+                        {translationMode.enabled && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="pt-2 space-y-3 border-t border-gray-100 dark:border-white/5"
+                            >
+                                {/* Translation Style */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-medium text-gray-500">显示位置</span>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { id: 'inside', label: '气泡内', desc: '合并显示' },
+                                            { id: 'outside', label: '气泡外', desc: '独立显示' }
+                                        ].map(opt => (
+                                            <button
+                                                key={opt.id}
+                                                onClick={() => setTranslationMode(prev => ({ ...prev, style: opt.id }))}
+                                                className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all flex flex-col items-center gap-0.5 ${translationMode.style === opt.id
+                                                    ? 'bg-orange-50 border-orange-200 text-orange-600 dark:bg-orange-900/20 dark:border-orange-500/30 dark:text-orange-400'
+                                                    : 'bg-gray-50 border-transparent text-gray-600 dark:bg-white/5 dark:text-gray-400'
+                                                    }`}
+                                            >
+                                                <span>{opt.label}</span>
+                                                <span className="text-[9px] opacity-60">{opt.desc}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Interaction Mode */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-medium text-gray-500">显示方式</span>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { id: 'direct', label: '直接显示', desc: '始终可见' },
+                                            { id: 'click', label: '点击显示', desc: '防剧透' }
+                                        ].map(opt => (
+                                            <button
+                                                key={opt.id}
+                                                onClick={() => setTranslationMode(prev => ({ ...prev, interaction: opt.id }))}
+                                                className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all flex flex-col items-center gap-0.5 ${translationMode.interaction === opt.id
+                                                    ? 'bg-orange-50 border-orange-200 text-orange-600 dark:bg-orange-900/20 dark:border-orange-500/30 dark:text-orange-400'
+                                                    : 'bg-gray-50 border-transparent text-gray-600 dark:bg-white/5 dark:text-gray-400'
+                                                    }`}
+                                            >
+                                                <span>{opt.label}</span>
+                                                <span className="text-[9px] opacity-60">{opt.desc}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </div>
+
+
                     {/* Section: Other Actions */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 pl-1">
-                            <div className="h-4 w-1 rounded-full bg-gradient-to-b from-orange-400 to-red-500" />
+                            <div className="h-4 w-1 rounded-full bg-gradient-to-b from-gray-400 to-gray-500" />
                             <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">其他操作</h3>
                         </div>
                         <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-white/5">
@@ -371,13 +494,13 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                     <motion.button
                         onClick={handleSave}
                         whileTap={{ scale: 0.97 }}
-                        className="w-full py-4 bg-gradient-to-r from-[#5B7FFF] to-[#7C3AED] active:opacity-90 transition-all text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/30"
+                        className="w-full py-4 bg-gradient-to-r from-gray-400 to-gray-500 active:opacity-90 transition-all text-white font-bold rounded-2xl shadow-lg shadow-gray-400/30"
                     >
                         保存配置
                     </motion.button>
                 </div>
             </div>
-        </IOSPage>
+        </IOSPage >
     );
 };
 

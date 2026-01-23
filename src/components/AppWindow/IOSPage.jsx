@@ -118,13 +118,13 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
                 style={{ touchAction: 'none' }}
             />
 
-            {/* Header */}
+            {/* Header - Absolute Positioned for Glass Effect over content */}
             {title && (
-                <div className="h-[50px] shrink-0 flex items-center justify-between px-2 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-xl border-b border-gray-100 dark:border-[#2C2C2E] pt-[env(safe-area-inset-top)] box-content z-10 transition-colors duration-300">
+                <div className="absolute top-0 left-0 right-0 h-[50px] flex items-center justify-between px-2 bg-white/5 backdrop-blur-sm border-b border-white/10 dark:border-white/5 pt-[env(safe-area-inset-top)] box-content z-20 transition-colors duration-300">
                     {showBackButton && (
                         <button
                             onClick={onBack}
-                            className="p-2 flex items-center gap-1 text-blue-500 active:opacity-50 transition-opacity"
+                            className="p-2 flex items-center gap-1 text-gray-400 dark:text-gray-400 active:opacity-50 transition-opacity"
                         >
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                             <span className="text-[17px] font-normal">Back</span>
@@ -137,8 +137,8 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
                 </div>
             )}
 
-            {/* Content w/ Scroll */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
+            {/* Content w/ Scroll - Full Height, with padding-top to account for header */}
+            <div className="absolute inset-0 overflow-y-auto overflow-x-hidden scroll-smooth" style={{ paddingTop: title ? 'calc(50px + env(safe-area-inset-top))' : 0 }}>
                 {children}
             </div>
 

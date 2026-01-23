@@ -182,7 +182,14 @@ const APIPage = ({ onBack }) => {
     };
 
     // 检查是否是当前激活的有效配置
-    const isActive = presets.find(p => p.name === name)?.id === activeApiId?.value && config.endpoint && config.apiKey;
+    // 只有当前输入的配置与数据库中激活的预设完全一致时才显示"已激活"
+    const activePreset = presets.find(p => p.id === activeApiId?.value);
+    const isActive = activePreset &&
+        activePreset.name === name &&
+        activePreset.endpoint === config.endpoint &&
+        activePreset.apiKey === config.apiKey &&
+        activePreset.model === config.model &&
+        activePreset.temperature === config.temperature;
 
     const [showModelPicker, setShowModelPicker] = useState(false);
 

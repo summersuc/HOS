@@ -2,18 +2,17 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Crown, Zap, ChevronRight, User } from 'lucide-react';
 
-const ProfileHeader = ({ profile, onAction }) => {
+const ProfileHeader = React.memo(({ profile, onAction }) => {
     if (!profile) return null;
 
     return (
         <div
             onClick={onAction}
-            className="flex items-center space-x-4 p-4 mx-4 bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-3xl border border-white/20 shadow-lg relative overflow-hidden group cursor-pointer active:scale-98 transition-transform"
+            className="flex items-center space-x-4 p-4 mx-4 bg-white/20 dark:bg-white/5 backdrop-blur-xl saturate-150 rounded-3xl border border-white/20 shadow-lg relative overflow-hidden group cursor-pointer active:scale-98 transition-transform"
         >
-            {/* Dynamic Background Glow */}
+            {/* ... rest of content remains same ... */}
             <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-            {/* Avatar */}
             <div className="relative">
                 <img
                     src={profile.avatarUrl}
@@ -27,7 +26,6 @@ const ProfileHeader = ({ profile, onAction }) => {
                 )}
             </div>
 
-            {/* Info */}
             <div className="flex-1 min-w-0 z-10">
                 <div className="flex items-center space-x-2">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">
@@ -49,12 +47,11 @@ const ProfileHeader = ({ profile, onAction }) => {
                 </div>
             </div>
 
-            {/* Arrow */}
             <button className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition z-10">
                 <ChevronRight size={16} className="text-gray-400" />
             </button>
         </div>
     );
-};
+});
 
 export default ProfileHeader;

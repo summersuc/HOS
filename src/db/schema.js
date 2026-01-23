@@ -100,6 +100,33 @@ db.version(10).stores({
     characters: '++id, name, avatar, description, personality, relationship, currentStatus, isFavorite, createdAt'
 });
 
+// 数据库版本 11: 独立壁纸存储 (Blob Storage)
+db.version(11).stores({
+    chatWallpapers: 'id, data, createdAt'
+});
+
+// 数据库版本 12: 时区支持 + 世界书增强 + max_tokens
+db.version(12).stores({
+    // 用户人设增加时区
+    userPersonas: '++id, name, userName, avatar, timezone, isActive, createdAt',
+    // 角色增加时区
+    characters: '++id, name, avatar, description, personality, relationship, timezone, currentStatus, isFavorite, createdAt',
+    // 世界书增加全局/角色绑定
+    worldBookEntries: '++id, title, keywords, isGlobal, characterId, injectionPosition, enabled, createdAt',
+    // 对话增加 maxTokens
+    conversations: '++id, characterId, userPersonaId, title, wallpaper, historyLimit, replyCount, maxTokens, noPunctuation, avatarMode, updatedAt'
+});
+
+// 数据库版本 13: 双语沟通支持
+db.version(13).stores({
+    conversations: '++id, characterId, userPersonaId, title, wallpaper, historyLimit, replyCount, maxTokens, noPunctuation, avatarMode, translationMode, updatedAt'
+});
+
+// 数据库版本 14: 通用 Blob 存储 (Fix iOS Crash)
+db.version(14).stores({
+    blobs: 'id, data, mimeType, createdAt'
+});
+
 // Database Auto-Repair Logic (PWA Corruption Handle)
 db.open().catch(async (err) => {
     console.error('Database Open Failed:', err);
@@ -127,4 +154,3 @@ db.open().catch(async (err) => {
         console.warn('Database repair attempted but error persists. Manual clearing required.');
     }
 });
-
