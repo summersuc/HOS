@@ -142,7 +142,7 @@ const BeautifyEditor = ({ onBack }) => {
                     <div className="flex gap-3">
                         <button
                             onClick={handleSave}
-                            className="flex-1 py-4 bg-[#5B7FFF] text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 active:scale-95 transition-transform"
+                            className="flex-1 py-4 bg-gray-100 dark:bg-[#2C2C2E] text-gray-900 dark:text-white font-bold rounded-2xl active:scale-95 transition-transform"
                         >
                             确定
                         </button>

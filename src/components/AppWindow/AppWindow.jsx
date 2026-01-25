@@ -9,6 +9,7 @@ import Settings from '../../apps/Settings';
 import Messenger from '../../apps/Messenger';
 import Calendar from '../../apps/Calendar';
 import Music from '../../apps/Music';
+import SmallWorld from '../../apps/SmallWorld';
 
 // 组件映射表
 const APP_COMPONENTS = {
@@ -16,6 +17,7 @@ const APP_COMPONENTS = {
     messenger: Messenger,
     calendar: Calendar,
     music: Music,
+    world: SmallWorld,
     // 其他 App 暂时未实现，后续添加
 };
 

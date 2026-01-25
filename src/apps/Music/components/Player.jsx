@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useDragControls, useAnimation } from 'framer-motion';
-import { ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, ListMusic, Heart, MessageSquare, Mic2, Sparkles } from 'lucide-react';
+import { ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, ListMusic, Heart, MessageSquare, Mic2, Sparkles, Headphones } from 'lucide-react';
 import { MusicService } from '../../../services/MusicService';
+import { useListenTogether } from '../../../hooks/useListenTogether';
 import LyricsView from './LyricsView';
 import CommentSheet from './CommentSheet';
 import AuroraBackground from './AuroraBackground';
@@ -10,6 +11,7 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
     const [isLiked, setIsLiked] = useState(false);
     const [viewMode, setViewMode] = useState('vinyl'); // 'vinyl' | 'lyrics'
     const [showComments, setShowComments] = useState(false);
+    const { isEnabled: isListenTogether, toggle: toggleListenTogether } = useListenTogether();
 
     // Animation Controls
     const controls = useAnimation();
@@ -153,6 +155,12 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
                         </button>
                         <button onClick={() => setShowComments(true)} className="p-2 active:scale-90 transition-transform text-white">
                             <MessageSquare size={26} />
+                        </button>
+                        <button
+                            onClick={toggleListenTogether}
+                            className={`p-2 active:scale-90 transition-transform ${isListenTogether ? 'text-green-400' : 'text-white'}`}
+                        >
+                            <Headphones size={28} className={isListenTogether ? 'fill-current' : ''} />
                         </button>
                     </div>
                 </div>

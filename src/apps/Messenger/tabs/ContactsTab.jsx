@@ -5,6 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
 import { motion } from 'framer-motion';
+import { pinyin } from 'pinyin-pro';
 
 const ContactsTab = ({ onSelectCharacter, onNewCharacter }) => {
     const characters = useLiveQuery(() => db.characters.orderBy('name').toArray());
@@ -14,7 +15,11 @@ const ContactsTab = ({ onSelectCharacter, onNewCharacter }) => {
         const favorites = characters.filter(c => c.isFavorite);
         const letters = {};
         characters.forEach(char => {
-            const firstLetter = (char.name?.[0] || '?').toUpperCase();
+            const name = char.nickname || char.name || '?';
+            const py = pinyin(name, { pattern: 'first', toneType: 'none', type: 'array' });
+            let firstLetter = (py[0] || '?')[0].toUpperCase();
+            if (!/[A-Z]/.test(firstLetter)) firstLetter = '#';
+
             if (!letters[firstLetter]) letters[firstLetter] = [];
             letters[firstLetter].push(char);
         });
@@ -23,17 +28,27 @@ const ContactsTab = ({ onSelectCharacter, onNewCharacter }) => {
 
     return (
         <div className="h-full flex flex-col bg-[var(--bg-primary-light)] dark:bg-[var(--bg-primary-dark)] transition-colors duration-300">
-            {/* Header */}
-            <div className="shrink-0 pt-[var(--sat)] bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-3xl border-b border-gray-200/30 dark:border-white/8 z-10">
-                <div className="h-[56px] flex items-center justify-between px-5">
-                    <h1 className="text-[32px] font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-white dark:to-gray-100 bg-clip-text text-transparent tracking-tight">通讯录</h1>
+            {/* Header - V3 Soft Gradient Blur */}
+            <div className="shrink-0 relative z-30">
+                <div
+                    className="absolute top-0 left-0 right-0 h-32 pointer-events-none"
+                    style={{
+                        background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
+                    }}
+                />
+                <div className="relative pt-[var(--sat)] h-[calc(56px+var(--sat))] flex items-center justify-between px-5">
+                    <h1 className="text-[32px] font-bold text-gray-900 dark:text-gray-200 tracking-tight">通讯录</h1>
                     <motion.button
                         onClick={() => { triggerHaptic(); onNewCharacter(); }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-500 dark:to-gray-600 flex items-center justify-center shadow-lg shadow-gray-400/25"
+                        className="w-9 h-9 rounded-full bg-transparent flex items-center justify-center"
                     >
-                        <Plus size={20} className="text-white" strokeWidth={2.5} />
+                        <Plus size={26} className="text-gray-400 dark:text-gray-500" strokeWidth={2.5} />
                     </motion.button>
                 </div>
             </div>
@@ -83,11 +98,8 @@ const ContactsTab = ({ onSelectCharacter, onNewCharacter }) => {
                 {/* Empty State */}
                 {(!characters || characters.length === 0) && (
                     <div className="flex flex-col items-center justify-center h-[60%] text-gray-400 p-8">
-                        <div className="w-24 h-24 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mb-5 shadow-lg">
-                            <Plus size={36} className="text-[var(--color-primary)]/50" />
-                        </div>
                         <p className="text-[16px] font-medium text-gray-500">还没有联系人</p>
-                        <button onClick={onNewCharacter} className="mt-5 px-6 py-2.5 bg-[var(--color-primary)] text-white rounded-full text-[15px] font-semibold shadow-lg shadow-gray-500/25 active:scale-95 transition-transform">
+                        <button onClick={onNewCharacter} className="mt-5 px-6 py-2.5 bg-gray-500 text-white rounded-full text-[15px] font-semibold active:scale-95 transition-transform">
                             添加联系人
                         </button>
                     </div>

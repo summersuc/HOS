@@ -1,0 +1,17 @@
+.small-world-app {
+    /* Custom scrollbar if needed, though Tailwind is preferred */
+    position: relative;
+    overflow: hidden;
+
+}
+
+.small-world-app .hide-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+.small-world-app .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}

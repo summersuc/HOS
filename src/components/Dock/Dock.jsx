@@ -8,7 +8,7 @@ const Dock = () => {
     const { openApp } = useApp();
 
     return (
-        <div className="mx-4 mb-2 px-4 py-4 flex justify-between items-center gap-4 bg-transparent">
+        <div className="mx-4 mb-0 px-4 py-4 flex justify-between items-center gap-4 bg-transparent">
             {defaultDockApps.map(id => {
                 const app = appRegistry[id];
                 if (!app) return null;

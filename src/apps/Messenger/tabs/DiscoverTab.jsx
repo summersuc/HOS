@@ -18,10 +18,20 @@ const DiscoverTab = ({ onOpenWorldBook }) => {
 
     return (
         <div className="h-full flex flex-col bg-[#F2F2F7] dark:bg-black">
-            {/* Header */}
-            <div className="shrink-0 pt-[var(--sat)] bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-3xl border-b border-gray-200/30 dark:border-white/8">
-                <div className="h-[56px] flex items-center px-5">
-                    <h1 className="text-[32px] font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-white dark:to-gray-100 bg-clip-text text-transparent tracking-tight">发现</h1>
+            {/* Header - V3 Soft Gradient Blur */}
+            <div className="shrink-0 relative z-30">
+                <div
+                    className="absolute top-0 left-0 right-0 h-32 pointer-events-none"
+                    style={{
+                        background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
+                    }}
+                />
+                <div className="relative pt-[var(--sat)] h-[calc(56px+var(--sat))] flex items-center px-5">
+                    <h1 className="text-[32px] font-bold text-gray-900 dark:text-gray-200 tracking-tight">发现</h1>
                 </div>
             </div>
 

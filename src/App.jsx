@@ -6,8 +6,12 @@ import { AppProvider } from './hooks/useApp';
 import { ThemeProvider } from './context/ThemeContext';
 import { db } from './db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useProactiveWatchdog } from './hooks/useProactiveWatchdog';
 
 function App() {
+  // Global Background Services
+  useProactiveWatchdog();
+
   // --- 1. 数据库读取逻辑：增加异常捕获，防止崩坏 ---
   const wallpaperUser = useLiveQuery(async () => {
     try {
@@ -54,7 +58,7 @@ function App() {
       try {
         const stored = localStorage.getItem('hos_wallpaper_fallback');
         if (stored) setFallbackWallpaper(stored);
-      } catch (e) {}
+      } catch (e) { }
     };
     loadFallback();
     window.addEventListener('wallpaper-changed-fallback', loadFallback);
@@ -66,7 +70,7 @@ function App() {
   // --- 3. 深夜模式逻辑：彻底隔离磁盘报错 ---
   useEffect(() => {
     const root = window.document.documentElement;
-    
+
     const updateTheme = () => {
       try {
         // 核心改动：不再依赖同步的数据库读取，优先读最稳的 localStorage

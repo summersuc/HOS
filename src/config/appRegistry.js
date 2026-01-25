@@ -25,8 +25,8 @@ export const appRegistry = {
         id: 'world',
         name: '小世界',
         icon: Globe,
-        color: '#007AFF', // System Blue
-        component: 'World',
+        color: '#AF52DE', // System Purple
+        component: 'SmallWorld',
         transmissionMode: 'A',
         notificationEnabled: true,
     },

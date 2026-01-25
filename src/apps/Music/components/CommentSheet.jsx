@@ -49,39 +49,7 @@ const CommentSheet = ({ songId, onClose }) => {
         }
     };
 
-    const CommentItem = ({ c }) => (
-        <div className="flex items-start space-x-3 mb-4">
-            <img src={c.user.avatarUrl} className="w-8 h-8 rounded-full" loading="lazy" />
-            <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-white/5 pb-3">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <div className="text-xs font-bold text-gray-600 dark:text-gray-300">
-                            {c.user.nickname}
-                        </div>
-                        <div className="text-[10px] text-gray-400">
-                            {new Date(c.time).toLocaleDateString()}
-                        </div>
-                    </div>
-                    <div
-                        onClick={() => handleLike(c.commentId, c.liked)}
-                        className={`flex items-center space-x-1 cursor-pointer ${c.liked ? 'text-red-500' : 'text-gray-400'}`}
-                    >
-                        <span className="text-[10px]">{c.likedCount}</span>
-                        <ThumbsUp size={12} fill={c.liked ? "currentColor" : "none"} />
-                    </div>
-                </div>
-                <p className="text-sm text-gray-800 dark:text-gray-200 mt-1 leading-relaxed">
-                    {c.content}
-                </p>
-                {c.beReplied && c.beReplied.length > 0 && (
-                    <div className="mt-2 text-xs bg-gray-100 dark:bg-white/5 p-2 rounded text-gray-500">
-                        <span className="font-bold">@{c.beReplied[0].user.nickname}: </span>
-                        {c.beReplied[0].content}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
+
 
     return (
         <motion.div
@@ -107,7 +75,7 @@ const CommentSheet = ({ songId, onClose }) => {
 
             {/* List */}
             <div
-                className="flex-1 overflow-y-auto p-4 space-y-6"
+                className="flex-1 overflow-y-auto p-4 space-y-6 overscroll-contain"
                 onPointerDown={(e) => e.stopPropagation()} // Prevent drag closing when scrolling
             >
                 {loading && (
@@ -119,19 +87,53 @@ const CommentSheet = ({ songId, onClose }) => {
                 {!loading && hotComments.length > 0 && (
                     <div className="mb-6">
                         <h3 className="text-xs font-bold text-gray-900 dark:text-white mb-3">精彩评论</h3>
-                        {hotComments.map(c => <CommentItem key={c.commentId} c={c} />)}
+                        {hotComments.map(c => <CommentItem key={c.commentId} c={c} onLike={handleLike} />)}
                     </div>
                 )}
 
                 {!loading && comments.length > 0 && (
                     <div>
                         <h3 className="text-xs font-bold text-gray-900 dark:text-white mb-3">最新评论</h3>
-                        {comments.map(c => <CommentItem key={c.commentId} c={c} />)}
+                        {comments.map(c => <CommentItem key={c.commentId} c={c} onLike={handleLike} />)}
                     </div>
                 )}
             </div>
         </motion.div>
     );
 };
+
+const CommentItem = ({ c, onLike }) => (
+    <div className="flex items-start space-x-3 mb-4">
+        <img src={c.user.avatarUrl} className="w-8 h-8 rounded-full" loading="lazy" />
+        <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-white/5 pb-3">
+            <div className="flex justify-between items-start">
+                <div>
+                    <div className="text-xs font-bold text-gray-600 dark:text-gray-300">
+                        {c.user.nickname}
+                    </div>
+                    <div className="text-[10px] text-gray-400">
+                        {new Date(c.time).toLocaleDateString()}
+                    </div>
+                </div>
+                <div
+                    onClick={() => onLike(c.commentId, c.liked)}
+                    className={`flex items-center space-x-1 cursor-pointer ${c.liked ? 'text-red-500' : 'text-gray-400'}`}
+                >
+                    <span className="text-[10px]">{c.likedCount}</span>
+                    <ThumbsUp size={12} fill={c.liked ? "currentColor" : "none"} />
+                </div>
+            </div>
+            <p className="text-sm text-gray-800 dark:text-gray-200 mt-1 leading-relaxed">
+                {c.content}
+            </p>
+            {c.beReplied && c.beReplied.length > 0 && (
+                <div className="mt-2 text-xs bg-gray-100 dark:bg-white/5 p-2 rounded text-gray-500">
+                    <span className="font-bold">@{c.beReplied[0].user.nickname}: </span>
+                    {c.beReplied[0].content}
+                </div>
+            )}
+        </div>
+    </div>
+);
 
 export default CommentSheet;

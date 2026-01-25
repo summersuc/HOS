@@ -60,8 +60,8 @@ const MusicApp = ({ onClose }) => {
                     </div>
 
                     {/* My Music Tab */}
-                    <div className="absolute inset-0 w-full h-full overflow-y-auto no-scrollbar" style={{ display: rootTab === 'playlists' ? 'block' : 'none' }}>
-                        <div className="pt-2 pb-32 space-y-4">
+                    <div className="absolute inset-0 w-full h-full overflow-y-auto no-scrollbar overscroll-contain" style={{ display: rootTab === 'playlists' ? 'block' : 'none' }}>
+                        <div className="pt-safe-top pb-32 space-y-4">
                             <ProfileHeader profile={profile} />
                             <PlaylistView userId={profile?.userId} onSelectPlaylist={handleSelectPlaylist} />
                         </div>
@@ -309,11 +309,22 @@ const MusicApp = ({ onClose }) => {
                 {globalLoading && (
                     <motion.div
                         key="global-loader"
-                        initial={{ opacity: 1 }}
+                        initial={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="fixed inset-0 z-[9999] bg-[#F5F5F7] dark:bg-black flex flex-col items-center justify-center space-y-4"
+                        className="fixed inset-0 z-[9999] bg-[#F5F5F7] dark:bg-black flex flex-col items-center justify-center space-y-4 cursor-grab active:cursor-grabbing"
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={{ right: 0.5 }}
+                        onDragEnd={(e, info) => {
+                            if (info.offset.x > 100 || info.velocity.x > 200) {
+                                onClose(); // Trigger app close/back
+                            }
+                        }}
                     >
+                        {/* Swipe Hint - Left Edge */}
+                        <div className="absolute left-0 top-0 bottom-0 w-12 z-[10000]" />
+
                         <motion.div
                             animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
                             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
@@ -322,6 +333,7 @@ const MusicApp = ({ onClose }) => {
                             <span className="text-4xl text-white font-bold">♫</span>
                         </motion.div>
                         <span className="text-xs text-gray-400 font-medium tracking-widest">LOADING</span>
+                        <span className="absolute bottom-10 py-1 px-3 rounded-full bg-gray-200/50 dark:bg-white/10 text-[10px] text-gray-400">右滑退出</span>
                     </motion.div>
                 )}
             </AnimatePresence>

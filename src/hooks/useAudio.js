@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { MusicService } from '../services/MusicService';
 
 // GLOBAL SINGLETON AUDIO STATE
 // This ensures that even if the component unmounts, the underlying audio object and state persist.
@@ -133,16 +134,26 @@ export const useAudio = () => {
         // Initial sync
         setState({ ...globalState });
 
-        const handleEnded = () => {
+        const handleEnded = async () => {
             // Logic to play next automatically
             if (globalState.queue.length === 0) return;
             let nextIndex = globalState.currentIndex + 1;
             if (nextIndex >= globalState.queue.length) {
+                // Determine loop mode
+                if (globalState.mode === 'sequence') return; // Stop at end
                 nextIndex = 0;
             }
             const nextTrack = globalState.queue[nextIndex];
             if (nextTrack) {
-                globalAudio.dispatchEvent(new CustomEvent('request-play-next', { detail: nextTrack }));
+                // Auto-fetch and play
+                try {
+                    const res = await MusicService.getSongUrl(nextTrack.id);
+                    if (res?.data?.[0]?.url) {
+                        playTrack(nextTrack, res.data[0].url);
+                    }
+                } catch (e) {
+                    console.error("Auto-play next failed", e);
+                }
             }
         };
         globalAudio.addEventListener('audio-ended', handleEnded);
@@ -200,7 +211,7 @@ export const useAudio = () => {
         broadcastState();
     };
 
-    const playNext = (auto = false) => {
+    const playNext = async () => {
         if (globalState.queue.length === 0) return;
 
         let nextIndex = globalState.currentIndex + 1;
@@ -208,25 +219,58 @@ export const useAudio = () => {
             nextIndex = 0;
         }
 
-        // Logic update state
-        globalState.currentIndex = nextIndex;
-        // NOTE: This intentionally does NOT play audio. It assumes the UI controls will pick up the 'currentTrack' change/logic OR calls this to GET the next track.
-        // Wait, `playTrack` sets the track. `playNext` here returns the track node?
-        // My previous code returned the track.
-
-        return globalState.queue[nextIndex];
+        const nextTrack = globalState.queue[nextIndex];
+        if (nextTrack) {
+            try {
+                const res = await MusicService.getSongUrl(nextTrack.id);
+                if (res?.data?.[0]?.url) {
+                    playTrack(nextTrack, res.data[0].url);
+                }
+            } catch (e) {
+                console.error("Play next failed", e);
+            }
+        }
     };
 
-    const playPrev = () => {
+    const playPrev = async () => {
+        if (globalState.queue.length === 0) return;
+
         let prevIndex = globalState.currentIndex - 1;
         if (prevIndex < 0) prevIndex = globalState.queue.length - 1;
-        return globalState.queue[prevIndex];
+
+        const prevTrack = globalState.queue[prevIndex];
+        if (prevTrack) {
+            try {
+                const res = await MusicService.getSongUrl(prevTrack.id);
+                if (res?.data?.[0]?.url) {
+                    playTrack(prevTrack, res.data[0].url);
+                }
+            } catch (e) {
+                console.error("Play prev failed", e);
+            }
+        }
     };
 
-    const togglePlay = () => {
-        if (globalState.isPlaying) globalAudio.pause();
-        else globalAudio.play();
-        // Listener updates state
+    const togglePlay = async () => {
+        try {
+            if (globalState.isPlaying) {
+                globalAudio.pause();
+            } else {
+                if (!globalAudio.src && globalState.currentTrack) {
+                    // Try to restore source if missing
+                    const res = await MusicService.getSongUrl(globalState.currentTrack.id);
+                    if (res?.data?.[0]?.url) {
+                        globalAudio.src = res.data[0].url;
+                    }
+                }
+                await globalAudio.play();
+            }
+        } catch (e) {
+            console.error("Toggle play failed", e);
+            // Sync state if actual play failed
+            globalState.isPlaying = false;
+            broadcastState();
+        }
     };
 
     const seek = (time) => {

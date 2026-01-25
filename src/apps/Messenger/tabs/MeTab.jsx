@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import { Plus, Check, Settings, ChevronRight, Sparkles, Palette, User } from 'lucide-react';
+import { Plus, Check, Settings, ChevronRight, Sparkles, Palette, User, Bot } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
@@ -77,10 +77,20 @@ const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings, onOpenBeautify }) 
 
     return (
         <div className="h-full flex flex-col bg-gradient-to-b from-gray-50 to-[#F2F2F7] dark:from-[#0A0A0F] dark:to-black">
-            {/* Header */}
-            <div className="shrink-0 pt-[var(--sat)] bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-3xl border-b border-gray-200/30 dark:border-white/8">
-                <div className="h-[56px] flex items-center px-5">
-                    <h1 className="text-[32px] font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-white dark:to-gray-100 bg-clip-text text-transparent tracking-tight">我</h1>
+            {/* Header - V3 Soft Gradient Blur */}
+            <div className="shrink-0 relative z-30">
+                <div
+                    className="absolute top-0 left-0 right-0 h-32 pointer-events-none"
+                    style={{
+                        background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
+                    }}
+                />
+                <div className="relative pt-[var(--sat)] h-[calc(56px+var(--sat))] flex items-center px-5">
+                    <h1 className="text-[32px] font-bold text-gray-900 dark:text-gray-200 tracking-tight">我</h1>
                 </div>
             </div>
 
@@ -116,7 +126,7 @@ const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings, onOpenBeautify }) 
                                                 transition={{ duration: 0.3 }}
                                             />
                                         ) : (
-                                            <User size={32} className="text-gray-300" />
+                                            <Bot size={32} className="text-gray-300" strokeWidth={1.5} />
                                         )}
                                     </div>
                                 </div>
@@ -130,7 +140,7 @@ const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings, onOpenBeautify }) 
                                     {effectiveActivePersona?.userName || '用户'}
                                 </h2>
                                 <div className="flex items-center gap-1.5 mt-1">
-                                    <Sparkles size={13} className="text-purple-500 shrink-0" />
+                                    <Bot size={14} className="text-gray-600 dark:text-gray-400 shrink-0" strokeWidth={2} />
                                     <p className="text-[14px] text-gray-600 dark:text-gray-400 truncate">
                                         {effectiveActivePersona?.name || '默认人设'}
                                     </p>
@@ -181,7 +191,7 @@ const MeTab = ({ onEditPersona, onNewPersona, onOpenSettings, onOpenBeautify }) 
                                                 <img src={avatarUrl} className="w-full h-full object-cover rounded-2xl" alt="" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-gray-400 rounded-2xl bg-gray-50 dark:bg-[#2C2C2E]">
-                                                    <User size={20} />
+                                                    <Bot size={20} className="text-gray-400" strokeWidth={1.5} />
                                                 </div>
                                             )}
                                         </div>

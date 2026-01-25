@@ -60,20 +60,36 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
     // Blob Preview Effect
     useEffect(() => {
         let url;
-        if (form.avatar instanceof Blob) {
-            url = URL.createObjectURL(form.avatar);
-            setAvatarPreview(url);
-        } else {
-            if (typeof form.avatar === 'string' && form.avatar.startsWith('idb:')) {
-                const cached = storageService.getCachedBlobUrl(form.avatar);
-                if (cached) {
-                    setAvatarPreview(cached);
-                    return;
+        let unsubscribe;
+
+        const updatePreview = () => {
+            if (form.avatar instanceof Blob) {
+                if (url) URL.revokeObjectURL(url);
+                url = URL.createObjectURL(form.avatar);
+                setAvatarPreview(url);
+            } else {
+                if (typeof form.avatar === 'string' && form.avatar.startsWith('idb:')) {
+                    const cached = storageService.getCachedBlobUrl(form.avatar);
+                    setAvatarPreview(cached || null); // If miss, set null, NEVER raw string
+                } else {
+                    setAvatarPreview(form.avatar || null);
                 }
             }
-            setAvatarPreview(form.avatar || null);
+        };
+
+        updatePreview();
+
+        // Subscribe to cache updates if using a reference
+        if (typeof form.avatar === 'string' && form.avatar.startsWith('idb:')) {
+            unsubscribe = storageService.subscribe(() => {
+                updatePreview();
+            });
         }
-        return () => url && URL.revokeObjectURL(url);
+
+        return () => {
+            if (url) URL.revokeObjectURL(url);
+            if (unsubscribe) unsubscribe();
+        };
     }, [form.avatar]);
 
     // Image Compression Helper
@@ -169,7 +185,7 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
     };
 
     const rightButton = (
-        <button onClick={handleSave} className="px-3 py-1.5 bg-gradient-to-r from-gray-400 to-gray-500 text-white text-[14px] font-semibold rounded-full shadow-md shadow-gray-400/20 active:scale-95 transition-transform">
+        <button onClick={handleSave} className="px-3 py-1.5 bg-transparent text-gray-900 dark:text-gray-100 text-[16px] font-semibold active:opacity-50 transition-opacity">
             保存
         </button>
     );

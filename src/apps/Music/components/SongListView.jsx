@@ -82,7 +82,7 @@ const SongListView = ({ playlistId, initialData, onBack, onPlaySong, onOpenSearc
 
     return (
         <div
-            className="h-full bg-[#F5F5F7] dark:bg-black overflow-y-auto no-scrollbar scroll-smooth relative font-sans"
+            className="h-full bg-[#F5F5F7] dark:bg-black overflow-y-auto no-scrollbar scroll-smooth relative font-sans overscroll-contain"
             onScroll={(e) => setScrollY(e.currentTarget.scrollTop)}
         >
             {/* --- Sticky Header (Glass) --- */}

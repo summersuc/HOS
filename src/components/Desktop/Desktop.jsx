@@ -108,12 +108,12 @@ const Desktop = () => {
     const handleDragStart = (event) => {
         setActiveId(event.active.id);
         setIsEditing(true); // Auto-enter edit mode on drag
-        triggerHaptic(); // Vibrate on pickup
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10);
     };
 
     const handleDragEnd = (event) => {
         const { active, over } = event;
-        triggerHaptic(); // Vibrate on drop
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10);
 
         if (active.id !== over?.id) {
             const oldIndex = apps.indexOf(active.id);
@@ -131,11 +131,6 @@ const Desktop = () => {
         }
     };
 
-    // Helper for Haptics (Import if needed, or inline)
-    const triggerHaptic = () => {
-        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10);
-    };
-
     return (
         <DndContext
             sensors={sensors}
@@ -144,15 +139,16 @@ const Desktop = () => {
             onDragEnd={handleDragEnd}
         >
             <div
-                className="flex flex-col h-full w-full pt-[var(--sat)] pb-[var(--sab)] px-4"
+                className={`flex flex-col h-full w-full pt-[var(--sat)] pb-[var(--sab)] px-4 select-none overscroll-none ${isEditing ? 'touch-none' : ''}`}
+                style={{ overscrollBehavior: 'none' }}
                 onClick={handleBackgroundClick}
             >
                 {/* 状态栏占位 (透明) */}
-                <div className="h-6 w-full shrink-0" onClick={handleBackgroundClick} />
+                <div className="h-6 w-full shrink-0" onClick={handleBackgroundClick} onTouchStart={e => { if (isEditing) e.preventDefault(); }} />
 
-                {/* 小组件区域 (Placeholder for now) */}
-                <div className="h-40 w-full mb-4 shrink-0" onClick={handleBackgroundClick}>
-                    <WidgetSlot />
+                {/* 小组件区域 (Flows naturally now) */}
+                <div className="w-full shrink-0" onClick={handleBackgroundClick}>
+                    <WidgetSlot isEditing={isEditing} />
                 </div>
 
                 {/* 图标网格区域 */}
@@ -182,7 +178,7 @@ const Desktop = () => {
                 </DragOverlay>
 
                 {/* 底部 Dock */}
-                <div className="shrink-0 mb-2 relative z-50">
+                <div className="shrink-0 mb-1 relative z-50">
                     <Dock />
                 </div>
             </div>

@@ -21,6 +21,7 @@ import ContactPicker from './components/ContactPicker';
 import APISettings from '../Settings/pages/APIPage';
 import BeautifyEditor from './pages/BeautifyEditor';
 import ChatSettingsPage from './pages/ChatSettingsPage';
+import WorldBookEditor from './pages/WorldBookEditor';
 
 const TABS = [
     { id: 'chat', label: '消息', icon: MessageSquare },
@@ -30,6 +31,8 @@ const TABS = [
 ];
 
 import { storageService } from '../../services/StorageService';
+import { llmService } from '../../services/LLMService';
+import NotificationService from '../../services/NotificationService';
 
 const Messenger = ({ onClose }) => {
     const [activeTab, setActiveTab] = useState('chat');
@@ -42,6 +45,7 @@ const Messenger = ({ onClose }) => {
     React.useEffect(() => {
         storageService.preloadTable('userPersonas');
         storageService.preloadTable('characters');
+        storageService.preloadTable('blobs', 'data');
         storageService.preloadTable('chatWallpapers', 'data');
     }, []);
 
@@ -93,79 +97,81 @@ const Messenger = ({ onClose }) => {
 
     return (
         <div className="w-full h-full relative bg-transparent overflow-hidden">
-            {/* 主视图层 */}
-            <IOSPage title={null} onBack={onClose} enableEnterAnimation={false}>
-                <div className="absolute inset-0 flex flex-col bg-[#F2F2F7] dark:bg-black">
-                    <div className="flex-1 overflow-hidden relative">
-                        <AnimatePresence mode="wait">
-                            <motion.div
-                                key={activeTab}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.15 }}
-                                className="absolute inset-0"
-                            >
-                                {activeTab === 'chat' && (
-                                    <ChatListTab
-                                        onSelectChat={(convId, charId) => openPage({ type: 'chat', id: convId, characterId: charId }, false)}
-                                        onShowNewMenu={() => setShowNewMenu(true)}
-                                    />
-                                )}
-                                {activeTab === 'contacts' && (
-                                    <ContactsTab
-                                        onSelectCharacter={(charId) => openPage({ type: 'profile', id: charId }, false)}
-                                        onNewCharacter={() => openPage({ type: 'character', id: null }, false)}
-                                    />
-                                )}
-                                {activeTab === 'discover' && (
-                                    <DiscoverTab
-                                        onOpenWorldBook={() => openPage({ type: 'worldbook' }, false)}
-                                        onOpenPresets={() => openPage({ type: 'presets' }, false)}
-                                    />
-                                )}
-                                {activeTab === 'me' && (
-                                    <MeTab
-                                        onEditPersona={(personaId) => openPage({ type: 'persona', id: personaId }, false)}
-                                        onNewPersona={() => openPage({ type: 'persona', id: null }, false)}
-                                        onOpenSettings={() => openPage({ type: 'settings' }, false)}
-                                        onOpenBeautify={() => openPage({ type: 'beautify' }, false)}
-                                    />
-                                )}
-                            </motion.div>
-                        </AnimatePresence>
-                    </div>
+            {/* 1. Main View Layer (List) - Always Bottom (z-10) */}
+            <motion.div className="absolute inset-0 z-10">
+                <IOSPage title={null} onBack={onClose} enableEnterAnimation={false}>
+                    <div className="absolute inset-0 flex flex-col bg-[#F2F2F7] dark:bg-black">
+                        <div className="flex-1 overflow-hidden relative">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={activeTab}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="absolute inset-0"
+                                >
+                                    {activeTab === 'chat' && (
+                                        <ChatListTab
+                                            onSelectChat={(convId, charId) => openPage({ type: 'chat', id: convId, characterId: charId }, false)}
+                                            onShowNewMenu={() => setShowNewMenu(true)}
+                                        />
+                                    )}
+                                    {activeTab === 'contacts' && (
+                                        <ContactsTab
+                                            onSelectCharacter={(charId) => openPage({ type: 'profile', id: charId }, false)}
+                                            onNewCharacter={() => openPage({ type: 'character', id: null }, false)}
+                                        />
+                                    )}
+                                    {activeTab === 'discover' && (
+                                        <DiscoverTab
+                                            onOpenWorldBook={() => openPage({ type: 'worldbook' }, false)}
+                                            onOpenPresets={() => openPage({ type: 'presets' }, false)}
+                                        />
+                                    )}
+                                    {activeTab === 'me' && (
+                                        <MeTab
+                                            onEditPersona={(personaId) => openPage({ type: 'persona', id: personaId }, false)}
+                                            onNewPersona={() => openPage({ type: 'persona', id: null }, false)}
+                                            onOpenSettings={() => openPage({ type: 'settings' }, false)}
+                                            onOpenBeautify={() => openPage({ type: 'beautify' }, false)}
+                                        />
+                                    )}
+                                </motion.div>
+                            </AnimatePresence>
+                        </div>
 
-                    <div className="shrink-0 px-4 pb-[var(--sab)] pt-2">
-                        <div className="bg-white/50 dark:bg-[#1C1C1E]/50 backdrop-blur-2xl rounded-full border border-gray-200/30 dark:border-white/10 shadow-lg">
-                            <div className="flex justify-around items-center h-[50px]">
-                                {TABS.map(tab => {
-                                    const isActive = activeTab === tab.id;
-                                    const Icon = tab.icon;
-                                    return (
-                                        <motion.button
-                                            key={tab.id}
-                                            onClick={() => handleTabChange(tab.id)}
-                                            whileTap={{ scale: 0.85 }}
-                                            className={`flex flex-col items-center justify-center gap-0.5 px-5 py-1.5 transition-all duration-200 ${isActive ? '' : 'opacity-40'}`}
-                                        >
-                                            <Icon
-                                                size={22}
-                                                strokeWidth={2}
-                                                fill={isActive ? 'currentColor' : 'none'}
-                                                className={isActive ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}
-                                            />
-                                            <span className={`text-[10px] font-medium ${isActive ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400'}`}>
-                                                {tab.label}
-                                            </span>
-                                        </motion.button>
-                                    );
-                                })}
+                        <div className="shrink-0 px-4 pb-[var(--sab)] pt-2">
+                            <div className="bg-white/50 dark:bg-[#1C1C1E]/50 backdrop-blur-2xl rounded-full border border-gray-200/30 dark:border-white/10 shadow-lg">
+                                <div className="flex justify-around items-center h-[50px]">
+                                    {TABS.map(tab => {
+                                        const isActive = activeTab === tab.id;
+                                        const Icon = tab.icon;
+                                        return (
+                                            <motion.button
+                                                key={tab.id}
+                                                onClick={() => handleTabChange(tab.id)}
+                                                whileTap={{ scale: 0.85 }}
+                                                className={`flex flex-col items-center justify-center gap-0.5 px-5 py-1.5 transition-all duration-200 ${isActive ? '' : 'opacity-40'}`}
+                                            >
+                                                <Icon
+                                                    size={22}
+                                                    strokeWidth={2}
+                                                    fill={isActive ? 'currentColor' : 'none'}
+                                                    className={isActive ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}
+                                                />
+                                                <span className={`text-[10px] font-medium ${isActive ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400'}`}>
+                                                    {tab.label}
+                                                </span>
+                                            </motion.button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </IOSPage>
+                </IOSPage>
+            </motion.div>
 
             {/* 新建菜单弹窗 */}
             <AnimatePresence>
@@ -227,10 +233,7 @@ const Messenger = ({ onClose }) => {
                 )}
             </AnimatePresence>
 
-
             {/* Render All Pages (Stack + Current) Unified */}
-
-
             <AnimatePresence>
                 {[...pageStack, currentPage].filter(Boolean).map((page, index) => {
                     const pageKey = `${page.type}-${page.id || page.conversationId || 'new'}-${index}`;
@@ -293,7 +296,36 @@ const Messenger = ({ onClose }) => {
                             />
                         );
                     }
-                    if (page.type === 'worldbook') return <WorldBookManager key={pageKey} onBack={closePage} />;
+                    if (page.type === 'worldbook') {
+                        return (
+                            <WorldBookManager
+                                key={pageKey}
+                                onBack={closePage}
+                                onNew={() => openPage({ type: 'worldbook_editor', entry: null }, true)}
+                                onEdit={(entry) => openPage({ type: 'worldbook_editor', entry: entry }, true)}
+                            />
+                        );
+                    }
+                    if (page.type === 'worldbook_editor') {
+                        return (
+                            <WorldBookEditor
+                                key={pageKey}
+                                entry={page.entry}
+                                onBack={closePage}
+                                onSave={async (entry) => {
+                                    if (entry.id) await db.worldBookEntries.update(entry.id, entry);
+                                    else await db.worldBookEntries.add({ ...entry, enabled: true });
+                                    closePage();
+                                }}
+                                onDelete={async (id) => {
+                                    if (confirm('删除此词条?')) {
+                                        await db.worldBookEntries.delete(id);
+                                        closePage();
+                                    }
+                                }}
+                            />
+                        );
+                    }
                     if (page.type === 'presets') return <PresetsManager key={pageKey} onBack={closePage} />;
                     if (page.type === 'persona') {
                         return (

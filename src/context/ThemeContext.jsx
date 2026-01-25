@@ -152,23 +152,93 @@ export const ThemeProvider = ({ children }) => {
 
     // 2. Widgets - SAFE MODE
     const [widgets, setWidgets] = useState([]);
+
+    // Robust ID generator
+    const generateId = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    };
+
     useEffect(() => {
-        db.widgets.toArray().then(setWidgets).catch(e => console.warn('Widgets DB failed', e));
+        const load = async () => {
+            // Load widgets and order in parallel
+            const [items, order] = await Promise.all([
+                db.widgets.toArray(),
+                getSetting('widget_order', [])
+            ]);
+
+            // Filter bad data
+            const validItems = items.filter(i => i && i.id);
+
+            // Sort
+            if (order && order.length > 0) {
+                validItems.sort((a, b) => {
+                    const indexA = order.indexOf(a.id);
+                    const indexB = order.indexOf(b.id);
+                    // If both are in order list, sort by index
+                    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                    // If one is missing, put it at the end
+                    if (indexA !== -1) return -1;
+                    if (indexB !== -1) return 1;
+                    return 0;
+                });
+            }
+            setWidgets(validItems);
+        };
+        load().catch(e => console.warn('Widgets Load failed', e));
     }, []);
+
+    const reloadWidgets = async () => {
+        const [items, order] = await Promise.all([
+            db.widgets.toArray(),
+            getSetting('widget_order', [])
+        ]);
+        const validItems = items.filter(i => i && i.id);
+        if (order && order.length > 0) {
+            validItems.sort((a, b) => {
+                const indexA = order.indexOf(a.id);
+                const indexB = order.indexOf(b.id);
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                if (indexA !== -1) return -1;
+                if (indexB !== -1) return 1;
+                return 0;
+            });
+        }
+        setWidgets(validItems);
+    };
+
+    // Save new order
+    const reorderWidgets = async (newWidgets) => {
+        // Optimistic update
+        setWidgets(newWidgets);
+        // Extract IDs
+        const ids = newWidgets.map(w => w.id);
+        await setSetting('widget_order', ids);
+    };
+
     // Note: To make widgets truly reactive in Safe Mode without liveQuery, 
     // we would need a global event bus or Context reload trigger. 
     // For now, let's assume WidgetCenterPage will handle its own updates or refresh this context.
     // Ideally, we add a reloadWidgets() exposed function.
 
-    const reloadWidgets = () => {
-        db.widgets.toArray().then(setWidgets).catch(e => console.warn('Reload Widgets failed', e));
-    };
+
 
     const addWidget = async (widget) => {
+        // Defensive: Ensure ID
+        const widgetWithId = {
+            ...widget,
+            id: widget.id || generateId()
+        };
+
         // Optimistic
-        setWidgets(prev => [...prev, widget]);
+        setWidgets(prev => [...prev, widgetWithId]);
+
         try {
-            await db.widgets.add(widget);
+            await db.widgets.add(widgetWithId);
+            // Append to order
+            const currentOrder = await getSetting('widget_order', []);
+            const newOrder = [...currentOrder, widgetWithId.id];
+            await setSetting('widget_order', newOrder);
         } catch (e) { console.warn('Add Widget DB failed', e) }
     };
 
@@ -197,6 +267,7 @@ export const ThemeProvider = ({ children }) => {
             widgets,
             addWidget,
             removeWidget,
+            reorderWidgets,
             clearWidgets
         }}>
             {children}

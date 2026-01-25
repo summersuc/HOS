@@ -66,9 +66,11 @@ export const llmService = {
         const payload = {
             model: overrideOptions.model || config.model || 'gpt-3.5-turbo',
             messages: messages,
-            temperature: overrideOptions.temperature ?? config.temperature ?? 0.7,
+            temperature: overrideOptions.temperature ?? config.temperature ?? 0.9,
             stream: false,
-            ...(overrideOptions.max_tokens ? { max_tokens: overrideOptions.max_tokens } : {}),
+            // Max Tokens Logic: >0 use value; ===0 unlimited (omit); undefined default to 5000
+            ...(overrideOptions.max_tokens > 0 ? { max_tokens: overrideOptions.max_tokens } : (overrideOptions.max_tokens === 0 ? {} : { max_tokens: 5000 })),
+            ...(config.top_p !== undefined ? { top_p: config.top_p } : {}),
             ...overrideOptions
         };
 
@@ -93,21 +95,31 @@ export const llmService = {
 
             if (!response.ok) {
                 const errorText = await response.text();
+
+                // User Request: Pass through ALL API errors (raw message), no custom Chinese.
                 try {
                     const errorJson = JSON.parse(errorText);
-                    throw new Error(errorJson.error?.message || `API Error: ${response.status}`);
+                    // Use standard OpenAI error message field if available, otherwise fallback
+                    const rawMsg = errorJson.error?.message || errorJson.message || errorText;
+                    throw new Error(`API Error (${response.status}): ${rawMsg}`);
                 } catch (e) {
-                    throw new Error(`API Connection Failed (${response.status}): ${errorText.slice(0, 100)}`);
+                    // If JSON parse failed, throw raw text
+                    // If the caught error is the one we just threw above, prop it.
+                    if (e.message.startsWith('API Error')) throw e;
+
+                    throw new Error(`API Error (${response.status}): ${errorText.slice(0, 200)}`);
                 }
             }
 
             const data = await response.json();
 
             // Standard OpenAI response format
-            if (data.choices && data.choices.length > 0) {
-                return data.choices[0].message.content;
+            if (data.choices && data.choices.length > 0 && data.choices[0].message?.content !== undefined) {
+                return data.choices[0].message.content || '';
             } else {
-                throw new Error('API returned empty choices');
+                const debugStr = JSON.stringify(data).slice(0, 500); // Limit length
+                console.error('[LLM] Invalid Response Structure:', data);
+                throw new Error(`API 返回内容格式错误或为空 (Received: ${debugStr})`);
             }
 
         } catch (error) {
@@ -234,18 +246,19 @@ export const llmService = {
 Persona: ${char.personality || char.description || 'Unknown'}
 ${wb.after_char ? '\n' + wb.after_char + '\n' : ''}User: ${userName}
 User Info: ${userDesc}
-Relationship: ${char.relationship || 'Stranger'}
+${char.relationship ? `Relationship: ${char.relationship}` : ''}
 ${wb.after_scenario ? '\n' + wb.after_scenario + '\n' : ''}`;
 
-        // Fetch Sticker List - FIXED: No more contradictory rules
+        // Fetch Sticker List
         let stickerPrompt = '';
         try {
             const stickers = await db.stickers.toArray();
             if (stickers.length > 0) {
-                const names = stickers.slice(0, 20).map(s => s.name).join(', '); // Limit to 20 to save tokens
-                stickerPrompt = `[Stickers Available]\nYou can use: [${names}]\nSend with: [Sticker: ExactName]`;
+                // Get all names
+                const names = stickers.map(s => s.name).join(', ');
+                stickerPrompt = `[Stickers Available]\nIMPORTANT: You can ONLY use the following stickers. Do NOT make up names.\nList: [${names}]\nSend with: [Sticker: ExactName]`;
             }
-            // If no stickers, stickerPrompt stays empty - no confusing "NEVER use" rules
+            // If no stickers, stickerPrompt stays empty
         } catch (e) {
             console.warn('Sticker fetch failed:', e);
         }
@@ -297,20 +310,28 @@ ${timeContext}
 1. FORMAT: Text ONLY. NO actions (*hugs*). NO thoughts ((thinking...)).
 2. EXPRESSION: Text, Emojis, Kaomoji${stickerPrompt ? ', and Stickers from the list below' : ''}.
 3. REPLY STRUCTURE (MUST FOLLOW):
-   - You MUST output EXACTLY ${replyDisplay} separate message bubbles.
+   - You MUST output ${String(replyCount).includes('-') ? 'BETWEEN' : 'EXACTLY'} ${replyDisplay} separate message bubbles.
    - Each bubble MUST be under 80 Chinese characters or 150 English characters.
    - Separate each bubble with a SINGLE newline (\\n).
    - FAILURE TO SPLIT = SYSTEM ERROR. DO NOT ignore this.
-${stickerPrompt ? stickerPrompt + '\n' : ''}${noPunctuation ? '4. NO PUNCTUATION: Omit all punctuation (,.!?). Use spaces/newlines instead.\n' : ''}${options.translationMode?.enabled ? '5. [BILINGUAL MODE]: You MUST reply in the character\'s native language, then append a Chinese translation using the command: [Translation: Chinese content here].\n' : ''}
+${stickerPrompt ? stickerPrompt + '\n' : ''}${noPunctuation ? '4. NO PUNCTUATION: Omit all punctuation (,.!?). Use spaces/newlines instead.\n' : ''}${options.translationMode?.enabled ? `5. [BILINGUAL MODE]: 
+   - OUTPUT FORMAT (Apply to EACH bubble): "Original Text ||| Translated Text"
+   - QUANTITY RULE: You MUST output ${replyDisplay} separate bubbles/lines as per Rule 3. The example below shows FORMAT ONLY, NOT QUANTITY.
+   - EXAMPLE FORMAT:
+     [Content 1] ||| [Translation 1]
+     [Content 2] ||| [Translation 2]
+     ...\n` : ''}
 [Protocol]
 - [User sent Image: ...]: React to visual details.
 - [User sent Red Packet: ...]: React to money/luck.
 
 [Commands]
 - SEND STICKER: [Sticker: Name]
-- SEND RED PACKET: [RedPacket: Amount, Note]
-- SEND TRANSFER: [Transfer: Amount, Note]
-- SEND GIFT: [Gift: GiftName]
+- SEND RED PACKET: [RedPacket: Amount, Note] (e.g. [RedPacket: 100, 恭喜发财])
+- SEND TRANSFER: [Transfer: Amount, Note] (e.g. [Transfer: 520, 拿去买好吃的])
+- SEND GIFT: [Gift: GiftName] (e.g. [Gift: 鲜花])
+- CONTROL MUSIC: [Music: Next] (Skip current song)
+- PLAY MUSIC: [Music: Play keywords]
 
 [System]
 Never describe actions like *hands you a red packet*. Use [RedPacket: ...] command instead.`;
@@ -320,9 +341,34 @@ Never describe actions like *hands you a red packet*. Use [RedPacket: ...] comma
             { role: 'system', content: globalCore + "\n\n" + appPrompt }
         ];
 
+        let lastMsgTime = 0;
+
         chronologicalHistory.forEach(msg => {
             if (msg.role && msg.content) {
                 let content = msg.content;
+                let timestampPrefix = '';
+
+                // --- Smart Timestamp Injection ---
+                // If gap > 2 hours, inject time context so AI feels the passage of time.
+                if (msg.timestamp && (msg.timestamp - lastMsgTime > 2 * 60 * 60 * 1000)) {
+                    const date = new Date(msg.timestamp);
+                    const now = new Date();
+                    const isToday = date.toDateString() === now.toDateString();
+                    const yesterday = new Date(now);
+                    yesterday.setDate(now.getDate() - 1);
+                    const isYesterday = yesterday.toDateString() === date.toDateString();
+
+                    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+                    let dayStr = '';
+                    if (isToday) dayStr = 'Today';
+                    else if (isYesterday) dayStr = 'Yesterday';
+                    else dayStr = `${date.getMonth() + 1}/${date.getDate()}`;
+
+                    timestampPrefix = `[Time: ${dayStr} ${timeStr}] `;
+                }
+                lastMsgTime = msg.timestamp || lastMsgTime;
+                // ---------------------------------
+
                 // Re-apply Rich Media descriptions if raw content isn't descriptive enough
                 if (msg.msgType === 'image') content = `[User sent Image: ${msg.content}]`;
                 if (msg.msgType === 'gift') content = `[User sent Gift: ${msg.metadata?.giftName || msg.content}]`;
@@ -331,9 +377,11 @@ Never describe actions like *hands you a red packet*. Use [RedPacket: ...] comma
 
                 // Handle Revoked Messages
                 if (msg.msgType === 'revoked') {
-                    // Inform AI that a message was revoked, but hide content
                     const who = msg.role === 'user' ? 'User' : 'Assistant';
                     content = `[System: ${who} revoked a message]`;
+                } else {
+                    // Apply timestamp prefix ONLY to active messages
+                    content = timestampPrefix + content;
                 }
 
                 messages.push({ role: msg.role, content: content });
@@ -351,7 +399,7 @@ Never describe actions like *hands you a red packet*. Use [RedPacket: ...] comma
 1. Current Time: ${postTime} (${uT.period(uT.hour)}). React to the time if relevant.
 2. STAY IN CHARACTER (${char.name}).
 3. RULE: TEXT ONLY. NO ACTIONS (*...*) OR THOUGHTS ((...)).
-4. FORMAT: EXACTLY ${replyDisplay} bubbles, split by single newline.`;
+4. FORMAT: ${String(replyCount).includes('-') ? 'BETWEEN' : 'EXACTLY'} ${replyDisplay} bubbles, split by single newline.`;
 
         messages.push({ role: 'system', content: postSystem });
         // ---------------------------------------------
@@ -370,6 +418,11 @@ Never describe actions like *hands you a red packet*. Use [RedPacket: ...] comma
     async sendMessageStream(messages, onDelta, onComplete, onError, options = {}) {
         try {
             const text = await this.chatCompletion(messages, options);
+
+            // Fix: Defensive check for undefined text to prevent crash at .length
+            if (text === undefined || text === null) {
+                throw new Error('LLM 返回了空内容，请重试');
+            }
 
             // PWA Background Optimization: 
             // If the tab is hidden, skip simulation to ensure notification triggers immediately.
@@ -399,5 +452,90 @@ Never describe actions like *hands you a red packet*. Use [RedPacket: ...] comma
         } catch (e) {
             onError(e);
         }
+    },
+
+    /**
+     * 触发被动/主动关怀消息 (Background)
+     * @param {string} conversationId 
+     */
+    async triggerProactiveMessage(conversationId) {
+        try {
+            const conv = await db.conversations.get(conversationId);
+            if (!conv) return;
+
+            const now = Date.now();
+            const lastMsg = await db.messengerMessages
+                .where('[conversationType+conversationId]')
+                .equals(['single', conversationId])
+                .last();
+
+            if (!lastMsg) return;
+
+            // Double check timing (redundant but safe)
+            const hoursSilent = (now - lastMsg.timestamp) / (1000 * 60 * 60);
+
+            // Build Context
+            // We use standard buildContext to ensure Persona/WorldBook rules apply
+            const contextMessages = await this.buildContext(
+                conv.characterId,
+                conversationId,
+                '', // No user input
+                {
+                    historyLimit: conv.historyLimit || 20,
+                    replyCount: conv.replyCount || '2-5', // Respect settings
+                    noPunctuation: conv.noPunctuation,
+                    translationMode: conv.translationMode
+                }
+            );
+
+            // Inject the "Trigger" System Prompt
+            // This acts as the "Ghost User" telling the AI what to do
+            const triggerPrompt = `[System Message]
+Current Time: ${new Date().toLocaleTimeString()}
+Status: The user has been silent for ${hoursSilent.toFixed(1)} hours.
+Action: Initiate a proactive message to check on the user or restart the conversation.
+Guidelines:
+1. Stay in Character.
+2. React naturally to the silence.
+3. OUTPUT FORMAT: Follow the standard spacing/length rules defined above (Reply Count: ${conv.replyCount || 'Standard'}).`;
+
+            // Change to 'user' role to ensure compatibility with strict API providers that dislike trailing system messages
+            contextMessages.push({ role: 'user', content: triggerPrompt });
+
+            // Call API (Non-stream)
+            const text = await this.chatCompletion(contextMessages, {
+                max_tokens: conv.maxTokens !== 0 ? conv.maxTokens : undefined
+            });
+
+            // Save to DB (Split Bubbles Logic)
+            if (text) {
+                // Split by newline to respect "Separate Bubbles" rule
+                const bubbles = text.split('\n').map(t => t.trim()).filter(t => t);
+
+                let timeOffset = 0;
+                for (const bubbleContent of bubbles) {
+                    await db.messengerMessages.add({
+                        conversationType: 'single',
+                        conversationId: conversationId,
+                        role: 'assistant',
+                        content: bubbleContent,
+                        msgType: 'text',
+                        metadata: { isProactive: true },
+                        timestamp: Date.now() + timeOffset
+                    });
+                    timeOffset += 100; // Ensure ordering
+                }
+
+                // Update Conversation
+                await db.conversations.update(conversationId, { updatedAt: Date.now() });
+
+                // Return full text for notification body
+                return { text: bubbles.join('\n'), characterId: conv.characterId };
+            }
+
+        } catch (e) {
+            console.error('Proactive Trigger Failed:', e);
+        }
+        return null;
     }
 };

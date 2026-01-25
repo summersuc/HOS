@@ -15,9 +15,6 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
     // Mapping x drag value to shadow opacity (Dimming effect)
     // 0px -> 100% opacity shadow (if we had a backdrop)
     // Actually, for the shadow *on the left of the card*, it stays constant usually, or fades out if we push it right?
-    // Let's keep the left-shadow static, but maybe we can dim the background if we controlled the parent.
-    // For now, we focus on the smoothness of the card itself.
-
     // Optimized Variants
     const variants = {
         initial: { x: '100%' },
@@ -26,11 +23,8 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
     };
 
     const transition = {
-        type: "spring",
-        stiffness: 350,   // Slightly softer than 400
-        damping: 35,      // Adjusted for critical damping
-        mass: 0.8,        // Lighter feel
-        restDelta: 0.2
+        duration: 0.4,
+        ease: [0.32, 0.72, 0, 1] // iOS Standard Ease (Quartz)
     };
 
     // If enableEnterAnimation is false, we override the initial state in the component props
@@ -102,7 +96,6 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
             transition={transition}
             className="absolute inset-0 z-20 flex flex-col bg-[#F2F4F6] dark:bg-black shadow-2xl"
             style={{ x, willChange: "transform" }} // Hardware Acceleration
-
             // Drag Logic
             drag="x"
             dragConstraints={{ left: 0, right: 0 }}
@@ -118,21 +111,35 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
                 style={{ touchAction: 'none' }}
             />
 
-            {/* Header - Absolute Positioned for Glass Effect over content */}
+            {/* Header - V3 Soft Gradient Blur */}
             {title && (
-                <div className="absolute top-0 left-0 right-0 h-[50px] flex items-center justify-between px-2 bg-white/5 backdrop-blur-sm border-b border-white/10 dark:border-white/5 pt-[env(safe-area-inset-top)] box-content z-20 transition-colors duration-300">
-                    {showBackButton && (
-                        <button
-                            onClick={onBack}
-                            className="p-2 flex items-center gap-1 text-gray-400 dark:text-gray-400 active:opacity-50 transition-opacity"
-                        >
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                            <span className="text-[17px] font-normal">Back</span>
-                        </button>
-                    )}
-                    <span className="text-[17px] font-semibold text-gray-900 dark:text-white truncate max-w-[50%]">{title}</span>
-                    <div className="w-[70px] flex justify-end">
-                        {rightButton}
+                <div className="absolute top-0 left-0 right-0 z-30">
+                    {/* Background Layer */}
+                    <div
+                        className="absolute top-0 left-0 right-0 h-28 pointer-events-none"
+                        style={{
+                            background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                            maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+                            WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)'
+                        }}
+                    />
+
+                    {/* Content */}
+                    <div className="relative h-[50px] flex items-center justify-between px-2 pt-[env(safe-area-inset-top)] box-content transition-colors duration-300">
+                        {showBackButton && (
+                            <button
+                                onClick={onBack}
+                                className="p-2 flex items-center gap-1 text-gray-400 dark:text-gray-400 active:opacity-50 transition-opacity"
+                            >
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                            </button>
+                        )}
+                        <span className="text-[17px] font-semibold text-gray-900 dark:text-white truncate max-w-[50%]">{title}</span>
+                        <div className="w-[70px] flex justify-end">
+                            {rightButton}
+                        </div>
                     </div>
                 </div>
             )}

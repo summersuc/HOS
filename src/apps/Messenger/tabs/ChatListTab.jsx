@@ -66,10 +66,36 @@ const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
 
     return (
         <div className="h-full flex flex-col bg-[var(--bg-primary-light)] dark:bg-[var(--bg-primary-dark)] transition-colors duration-300">
-            {/* Header */}
-            <div className="shrink-0 pt-[var(--sat)] bg-white/85 dark:bg-[#1C1C1E]/85 backdrop-blur-3xl border-b border-gray-200/30 dark:border-white/8 z-10">
-                <div className="h-[56px] flex items-center justify-between px-5">
-                    <h1 className="text-[32px] font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-white dark:to-gray-100 bg-clip-text text-transparent tracking-tight">消息</h1>
+            {/* Header - V3 Soft Gradient Blur */}
+            <div className="shrink-0 relative z-30">
+                <div
+                    className="absolute top-0 left-0 right-0 h-32 pointer-events-none"
+                    style={{
+                        background: 'linear-gradient(to bottom, var(--bg-primary-light) 0%, transparent 100%)', // Use CSS var for theme
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
+                    }}
+                />
+                {/* Note: Dark mode background handling might need explicit darker color if var not reliable for RGBA logic. 
+                    Let's use a simpler bg-white approach for now matching others? 
+                    Actually Tabs used var(--bg-primary-light) before. 
+                    Let's revert to white/black for glass effect to be consistent.
+                */}
+                <div
+                    className="absolute top-0 left-0 right-0 h-32 pointer-events-none"
+                    style={{
+                        background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
+                    }}
+                />
+
+                <div className="relative pt-[var(--sat)] h-[calc(56px+var(--sat))] flex items-center justify-between px-5">
+                    <h1 className="text-[32px] font-bold text-gray-900 dark:text-gray-200 tracking-tight">消息</h1>
                     <motion.button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -78,9 +104,9 @@ const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
                         }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-500 dark:to-gray-600 flex items-center justify-center shadow-lg shadow-gray-400/25"
+                        className="w-9 h-9 rounded-full bg-transparent flex items-center justify-center"
                     >
-                        <Plus size={20} className="text-white" strokeWidth={2.5} />
+                        <Plus size={26} className="text-gray-400 dark:text-gray-500" strokeWidth={2.5} />
                     </motion.button>
                 </div>
             </div>
@@ -123,7 +149,12 @@ const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
                                     {/* Avatar with Unread Badge */}
                                     <div className="relative shrink-0">
                                         <div className="w-[48px] h-[48px] rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 p-0.5">
-                                            <Avatar src={char?.avatar} name={char?.name} size={48} className="rounded-xl" />
+                                            <Avatar
+                                                src={char?.avatar}
+                                                name={char?.name}
+                                                size={48}
+                                                className="rounded-xl"
+                                            />
                                         </div>
                                         {/* Status Indicator */}
                                         {char?.currentStatus && (
@@ -157,8 +188,8 @@ const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
                     </div>
                 ) : (
                     <div className="flex flex-col items-center justify-center pt-32 text-gray-400">
-                        <div className="w-20 h-20 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mb-4">
-                            <MessageCircle size={32} className="text-[var(--color-primary)]/50" />
+                        <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                            <MessageCircle size={32} className="text-gray-400 dark:text-gray-500" />
                         </div>
                         <p className="text-[15px] font-medium text-gray-500">暂无消息</p>
                         <p className="text-[13px] text-gray-400 mt-1">点击右上角开始新对话</p>

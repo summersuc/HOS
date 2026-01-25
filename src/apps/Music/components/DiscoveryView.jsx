@@ -157,7 +157,7 @@ const DiscoveryView = memo(({ userId, onSelectPlaylist, onPlaySong, onOpenSearch
     }
 
     return (
-        <div className="h-full flex flex-col overflow-y-auto pb-32 bg-[#F5F5F7] dark:bg-black scroll-smooth pt-20">
+        <div className="h-full flex flex-col overflow-y-auto pb-32 bg-[#F5F5F7] dark:bg-black scroll-smooth overscroll-contain" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 80px)' }}>
             {/* Search Bar Removed (Handled by MusicApp) */}
 
             {/* --- 0. Banner Carousel --- */}

@@ -25,8 +25,19 @@ const NotificationService = {
      * @returns {Promise<'granted' | 'denied' | 'default'>}
      */
     async requestPermission() {
+        // iOS and modern browsers require HTTPS for Notifications
+        if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            alert('通知功能限制：\niOS/浏览器要求必须使用 HTTPS 安全协议才能请求通知权限。\n\n当前为 HTTP 环境，无法调用系统弹窗。');
+            console.warn('Notifications require Secure Context (HTTPS)');
+            return 'denied';
+        }
+
         if (!this.isSupported()) {
             console.warn('Notifications not supported on this device');
+            // Try to give a more helpful message for iOS specific issues
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                alert('您的 iOS 版本或浏览器可能不支持 Web 推送，或者未添加到主屏幕。\n请确保：\n1. iOS 16.4+\n2. 已添加到主屏幕 (PWA模式)');
+            }
             return 'denied';
         }
 

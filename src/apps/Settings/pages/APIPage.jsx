@@ -10,7 +10,8 @@ const APIPage = ({ onBack }) => {
         endpoint: '',
         apiKey: '',
         model: 'gpt-4-turbo',
-        temperature: 0.7 // 默认 0.7
+        temperature: 0.9, // 默认 0.9
+        top_p: 0.9        // 默认 0.9
     });
 
     const [modelList, setModelList] = useState([]); // 从 API 获取的模型列表
@@ -43,7 +44,8 @@ const APIPage = ({ onBack }) => {
             endpoint: preset.endpoint,
             apiKey: preset.apiKey,
             model: preset.model || 'gpt-3.5-turbo',
-            temperature: preset.temperature ?? 0.7,
+            temperature: preset.temperature ?? 0.9,
+            top_p: preset.top_p ?? 0.9,
         });
     };
 
@@ -189,7 +191,8 @@ const APIPage = ({ onBack }) => {
         activePreset.endpoint === config.endpoint &&
         activePreset.apiKey === config.apiKey &&
         activePreset.model === config.model &&
-        activePreset.temperature === config.temperature;
+        activePreset.temperature === config.temperature &&
+        (activePreset.top_p ?? 0.9) === config.top_p;
 
     const [showModelPicker, setShowModelPicker] = useState(false);
 
@@ -328,7 +331,7 @@ const APIPage = ({ onBack }) => {
                     <div>
                         <div className="flex items-center justify-between mb-2 ml-1">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">随机性 (Temperature): {config.temperature}</label>
-                            <span className="text-xs text-gray-400">{config.temperature < 0.3 ? '严谨' : config.temperature > 1.0 ? '狂野' : '平衡'}</span>
+                            <span className="text-xs text-gray-400">{config.temperature < 0.5 ? '严谨' : config.temperature > 1.0 ? '狂野' : '平衡'}</span>
                         </div>
                         <input
                             type="range"
@@ -340,9 +343,30 @@ const APIPage = ({ onBack }) => {
                             className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                         />
                         <div className="flex justify-between text-[10px] text-gray-400 px-1 mt-1">
-                            <span>0.0 (精准)</span>
-                            <span>1.0 (创意)</span>
-                            <span>2.0 (癫狂)</span>
+                            <span>0.0</span>
+                            <span>1.0</span>
+                            <span>2.0</span>
+                        </div>
+                    </div>
+
+                    {/* Top P Slider */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2 ml-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">核采样 (Top P): {config.top_p}</label>
+                            <span className="text-xs text-gray-400">{config.top_p < 0.5 ? '聚焦' : '多样'}</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={config.top_p}
+                            onChange={(e) => setConfig({ ...config, top_p: parseFloat(e.target.value) })}
+                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                        />
+                        <div className="flex justify-between text-[10px] text-gray-400 px-1 mt-1">
+                            <span>0.0 (收敛)</span>
+                            <span>1.0 (发散)</span>
                         </div>
                     </div>
 
