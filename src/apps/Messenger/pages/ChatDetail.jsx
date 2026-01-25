@@ -1379,7 +1379,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                             <PlusCircle size={22} className="text-gray-500" />
                         </button>
 
-                        <div className="flex-1 min-h-[40px] flex items-center py-1">
+                        <div className="flex-1 min-w-0 min-h-[40px] flex items-center py-1">
                             <textarea
                                 ref={inputRef}
                                 value={input}
@@ -1403,11 +1403,11 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                             onClick={handleSendBtnClick}
                             whileTap={{ scale: 0.9 }}
                             className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all mb-0.5 ${input.trim() || pendingAttachment
-                                ? 'bg-[#5B7FFF] shadow-md cursor-pointer'
-                                : 'bg-gray-200 dark:bg-[#3A3A3C] cursor-not-allowed opacity-80'
+                                ? 'bg-transparent cursor-pointer'
+                                : 'bg-transparent cursor-not-allowed'
                                 }`}
                         >
-                            <Send size={18} className={input.trim() || pendingAttachment ? "text-white ml-0.5" : "text-gray-400 ml-0.5"} />
+                            <Send size={24} className={input.trim() || pendingAttachment ? "text-[#5B7FFF] ml-0.5" : "text-gray-500 ml-0.5"} />
                         </motion.button>
                     </div>
 
