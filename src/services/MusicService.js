@@ -3,7 +3,7 @@
  * Handles communication with the NeteaseCloudMusicApi via Vite Proxy
  */
 // Use environment variable for API URL in production, fallback to local proxy for dev
-const API_BASE = '/music-api';
+const API_BASE = 'https://api-enhanced-smoky.vercel.app';
 
 export const MusicService = {
     async request(endpoint, options = {}, retries = 1) {
