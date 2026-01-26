@@ -17,8 +17,10 @@ import { motion, AnimatePresence } from 'framer-motion';
  * @param {Object} props.translationMode - { enabled, style, interaction }
  * @param {string} props.visualClass - The style class for the bubble (used for both original and translation)
  * @param {boolean} props.isUser
+ * @param {Function} props.onContextMenu - Context menu handler from parent
+ * @param {Function} props.onBubbleClick - Primary click/select handler from parent
  */
-const BilingualSmartBubble = ({ msg, children, translationMode, visualClass, isUser }) => {
+const BilingualSmartBubble = ({ msg, children, translationMode, visualClass, isUser, onContextMenu, onBubbleClick }) => {
     // 1. Resolve Configuration
     const { style = 'merged', interaction = 'always' } = translationMode || {};
     const translation = msg.metadata?.translation;
@@ -39,14 +41,29 @@ const BilingualSmartBubble = ({ msg, children, translationMode, visualClass, isU
     }, [interaction]);
 
     const toggleExpand = (e) => {
-        e.stopPropagation();
-        if (interaction === 'always') return; // Ignore click if always visible
-        setIsExpanded(!isExpanded);
+        // We only stop propagation if we are explicitly handling the translation toggle internally
+        // But we still want the parent (ChatDetail) to know about the click for its own selection logic
+        if (interaction !== 'always') {
+            setIsExpanded(!isExpanded);
+        }
+        if (onBubbleClick) onBubbleClick(e);
+    };
+
+    const handleContextMenu = (e) => {
+        if (onContextMenu) onContextMenu(e);
     };
 
     // If no translation or disabled, just return children in a stable wrapper
     if (!translation || !translationMode?.enabled) {
-        return <div className="flex flex-col w-full">{children}</div>;
+        return (
+            <div
+                className="flex flex-col w-full"
+                onClick={onBubbleClick}
+                onContextMenu={onContextMenu}
+            >
+                {children}
+            </div>
+        );
     }
 
     // Ensure inner bubbles don't get double max-width constrained
@@ -61,7 +78,8 @@ const BilingualSmartBubble = ({ msg, children, translationMode, visualClass, isU
                 <>
                     {/* Original content - clickable if click mode */}
                     <div
-                        onClick={interaction === 'click' ? toggleExpand : undefined}
+                        onClick={toggleExpand}
+                        onContextMenu={handleContextMenu}
                         className={`${innerVisualClass} ${interaction === 'click' ? 'cursor-pointer' : ''}`}
                     >
                         {children}
@@ -92,7 +110,8 @@ const BilingualSmartBubble = ({ msg, children, translationMode, visualClass, isU
             ) : (
                 /* Merged Mode (Inside) - Single bubble with translation inside */
                 <div
-                    onClick={interaction === 'click' ? toggleExpand : undefined}
+                    onClick={toggleExpand}
+                    onContextMenu={handleContextMenu}
                     className={interaction === 'click' ? 'cursor-pointer' : ''}
                 >
                     {children}

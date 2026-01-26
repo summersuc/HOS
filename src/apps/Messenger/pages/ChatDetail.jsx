@@ -1303,8 +1303,6 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                     )}
 
                                     <div
-                                        onContextMenu={(e) => { e.preventDefault(); triggerHaptic(); setSelectedMsg(msg.id); }}
-                                        onClick={(e) => { e.stopPropagation(); setSelectedMsg(selectedMsg === msg.id ? null : msg.id); }}
                                         // Pass index and all messages for Union Logic
                                         // V3: Pass true for isTransparent if split mode
                                         className={`${getBubbleStyle(msg, index, messages, translationMode.style === 'split' && msg.metadata?.translation && translationMode.enabled)} ${isText ? (msg.role === 'user' ? 'bubble-user-shadow' : 'bubble-ai-shadow') : ''}`}
@@ -1321,6 +1319,8 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                             }}
                                             isUser={msg.role === 'user'}
                                             visualClass={getBubbleStyle(msg, index, messages, false)} // Always pass the FULL visual style to children
+                                            onContextMenu={(e) => { e.preventDefault(); triggerHaptic(); setSelectedMsg(msg.id); }}
+                                            onBubbleClick={(e) => { e.stopPropagation(); setSelectedMsg(selectedMsg === msg.id ? null : msg.id); }}
                                         >
                                             {renderBubbleContent(msg, index)}
                                         </BilingualSmartBubble>
