@@ -7,7 +7,10 @@ import LyricsView from './LyricsView';
 import CommentSheet from './CommentSheet';
 import AuroraBackground from './AuroraBackground';
 
+import ContactSelectorSheet from './ContactSelectorSheet';
+
 const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, onNext, onPrev, mode, onToggleMode, onOpenQueue, onIntelligenceMode }) => {
+    const [showContactSelector, setShowContactSelector] = useState(false);
     const [isLiked, setIsLiked] = useState(false);
     const [viewMode, setViewMode] = useState('vinyl'); // 'vinyl' | 'lyrics'
     const [showComments, setShowComments] = useState(false);
@@ -80,11 +83,10 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
             </div>
 
             {/* Header */}
-            <div className="relative z-30 pt-4 px-6 flex justify-between items-center text-white h-16">
+            <div className="relative z-30 pt-[calc(env(safe-area-inset-top)+10px)] px-6 flex justify-between items-center text-white min-h-[64px]">
                 <button onClick={handleClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 active:bg-white/20 transition-colors backdrop-blur-md">
                     <ChevronDown size={24} />
                 </button>
-                <div className="w-10 h-1 bg-white/20 rounded-full mb-1" />
                 <div className="w-10" />
             </div>
 
@@ -125,7 +127,6 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             className="w-full h-full px-6 py-4"
-                            onClick={(e) => e.stopPropagation()}
                         >
                             <LyricsView songId={track.id} currentTime={progress} duration={duration} />
                         </motion.div>
@@ -157,7 +158,7 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
                             <MessageSquare size={26} />
                         </button>
                         <button
-                            onClick={toggleListenTogether}
+                            onClick={() => setShowContactSelector(true)}
                             className={`p-2 active:scale-90 transition-transform ${isListenTogether ? 'text-green-400' : 'text-white'}`}
                         >
                             <Headphones size={28} className={isListenTogether ? 'fill-current' : ''} />
@@ -214,6 +215,61 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
             <AnimatePresence>
                 {showComments && (
                     <CommentSheet songId={track.id} onClose={() => setShowComments(false)} />
+                )}
+            </AnimatePresence>
+
+            {/* Contact Selector for Listen Together */}
+            <AnimatePresence>
+                {showContactSelector && (
+                    <ContactSelectorSheet
+                        onClose={() => setShowContactSelector(false)}
+                        onSelect={(convId) => {
+                            setShowContactSelector(false);
+
+                            // Dispatch Share Event
+                            const event = new CustomEvent('hos-app-share', {
+                                detail: {
+                                    targetApp: 'messenger',
+                                    action: 'share-music',
+                                    data: {
+                                        title: track.name,
+                                        artist: track.ar?.[0]?.name,
+                                        cover: track.al?.picUrl,
+                                        songId: track.id,
+                                        type: 'song'
+                                    },
+                                    targetId: convId
+                                }
+                            });
+                            window.dispatchEvent(event);
+
+                            // Close Player implies minimizing music?
+                            // Maybe keep music app open but user might manually switch or system switches.
+                            // For better UX, let's close the player/minimize app
+                            // But 'hos-app-share' handling in Messenger should ideally bring Messenger to front.
+                            // We'll rely on global event handler in Messenger/Index to switch tabs.
+                            // BUT the OS needs to switch APP focus.
+                            // We can trigger an OS level event if needed. For now assume single page app context.
+                            onClose(); // Minify Player
+                            // Launch messenger with params
+                            window.dispatchEvent(new CustomEvent('launch-app', {
+                                detail: {
+                                    appId: 'messenger',
+                                    params: {
+                                        action: 'share-music',
+                                        data: {
+                                            title: track.name,
+                                            artist: track.ar?.[0]?.name,
+                                            cover: track.al?.picUrl,
+                                            songId: track.id,
+                                            type: 'song'
+                                        },
+                                        targetId: convId
+                                    }
+                                }
+                            }));
+                        }}
+                    />
                 )}
             </AnimatePresence>
         </motion.div>

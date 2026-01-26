@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
 import IOSPage from '../../../components/AppWindow/IOSPage';
+import { BackIcon } from '../icons';
 
 const APIPage = ({ onBack }) => {
     // 状态管理
@@ -199,7 +200,7 @@ const APIPage = ({ onBack }) => {
     // ... (rest of imports and logic)
 
     return (
-        <IOSPage title="大脑连接" onBack={onBack}>
+        <IOSPage title="大脑连接" onBack={onBack} backIcon={<BackIcon size={20} />}>
             <div className="p-5 pb-24 space-y-6">
 
                 {/* ... (Presets Section) ... */}

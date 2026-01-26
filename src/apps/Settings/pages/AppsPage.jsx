@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, BellRing } from 'lucide-react';
 import { appRegistry } from '../../../config/appRegistry';
 import IOSPage from '../../../components/AppWindow/IOSPage';
+import { BackIcon } from '../icons';
 import { db } from '../../../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
 import NotificationService from '../../../services/NotificationService';
@@ -108,7 +109,7 @@ const AppItem = ({ app }) => {
 
 const AppsPage = ({ onBack }) => {
     return (
-        <IOSPage title="应用管理" onBack={onBack}>
+        <IOSPage title="应用管理" onBack={onBack} backIcon={<BackIcon size={20} />}>
             <div className="p-5 space-y-3 pb-24">
                 <p className="text-xs text-gray-400 dark:text-gray-600 px-1 mb-2">配置每个 App 的 AI 连接权限(通讯模式)与通知权限。</p>
                 {Object.values(appRegistry).filter(app => app.id !== 'settings').map(app => (
@@ -128,7 +129,7 @@ const AppsPage = ({ onBack }) => {
                                     tag: 'test-instant'
                                 });
                             }}
-                            className="w-full py-3 bg-gradient-to-r from-green-400 to-green-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-green-500/20"
+                            className="w-full py-3 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
                         >
                             <Bell size={18} /> 测试即时弹窗
                         </button>
@@ -142,7 +143,7 @@ const AppsPage = ({ onBack }) => {
                                     tag: 'test-delayed'
                                 }, 5000);
                             }}
-                            className="w-full py-3 bg-gradient-to-r from-purple-400 to-purple-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-purple-500/20"
+                            className="w-full py-3 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
                         >
                             <BellRing size={18} /> 测试 5s 后锁屏弹窗
                         </button>

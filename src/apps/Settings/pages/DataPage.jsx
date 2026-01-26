@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../db/schema';
 import IOSPage from '../../../components/AppWindow/IOSPage';
+import { BackIcon, DataIcon } from '../icons';
 
 const DataPage = ({ onBack }) => {
     const [usage, setUsage] = useState('计算中...');
@@ -249,11 +250,11 @@ const DataPage = ({ onBack }) => {
     const [showDebug, setShowDebug] = useState(false);
 
     return (
-        <IOSPage title="数据存储" onBack={onBack}>
+        <IOSPage title="数据存储" onBack={onBack} backIcon={<BackIcon size={20} />}>
             <div className="p-5 space-y-6">
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-50/50 text-center">
-                    <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <DataIcon size={32} />
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900">{usage}</h2>
                     <p className="text-gray-500 text-sm mt-1">本地存储已占用</p>

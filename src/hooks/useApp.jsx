@@ -5,14 +5,25 @@ const AppContext = createContext();
 export const AppProvider = ({ children }) => {
     const [activeAppId, setActiveAppId] = useState(null);
     const [minimizedApps, setMinimizedApps] = useState([]);
+    const [appParams, setAppParams] = useState({});
 
-    const openApp = (id) => {
+    const openApp = (id, params = null) => {
         setActiveAppId(id);
+        if (params) {
+            setAppParams(prev => ({ ...prev, [id]: params }));
+        }
         // 从最小化列表移除
         setMinimizedApps(prev => prev.filter(appId => appId !== id));
     };
 
     const closeApp = () => {
+        if (activeAppId) {
+            setAppParams(prev => {
+                const next = { ...prev };
+                delete next[activeAppId];
+                return next;
+            });
+        }
         setActiveAppId(null);
     };
 
@@ -27,6 +38,7 @@ export const AppProvider = ({ children }) => {
         <AppContext.Provider value={{
             activeAppId,
             minimizedApps,
+            appParams,
             openApp,
             closeApp,
             minimizeApp

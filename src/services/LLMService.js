@@ -315,7 +315,7 @@ ${timeContext}
    - Separate each bubble with a SINGLE newline (\\n).
    - FAILURE TO SPLIT = SYSTEM ERROR. DO NOT ignore this.
 ${stickerPrompt ? stickerPrompt + '\n' : ''}${noPunctuation ? '4. NO PUNCTUATION: Omit all punctuation (,.!?). Use spaces/newlines instead.\n' : ''}${options.translationMode?.enabled ? `5. [BILINGUAL MODE]: 
-   - OUTPUT FORMAT (Apply to EACH bubble): "Original Text ||| Translated Text"
+   - OUTPUT FORMAT (Apply to EACH bubble): "Original Text (Character's Native Language) ||| Translated Text (Chinese)"
    - QUANTITY RULE: You MUST output ${replyDisplay} separate bubbles/lines as per Rule 3. The example below shows FORMAT ONLY, NOT QUANTITY.
    - EXAMPLE FORMAT:
      [Content 1] ||| [Translation 1]
@@ -327,6 +327,7 @@ ${stickerPrompt ? stickerPrompt + '\n' : ''}${noPunctuation ? '4. NO PUNCTUATION
 
 [Commands]
 - SEND STICKER: [Sticker: Name]
+- SEND VOICE: [Voice: Message Content] (e.g. [Voice: 哼，不理你了])
 - SEND RED PACKET: [RedPacket: Amount, Note] (e.g. [RedPacket: 100, 恭喜发财])
 - SEND TRANSFER: [Transfer: Amount, Note] (e.g. [Transfer: 520, 拿去买好吃的])
 - SEND GIFT: [Gift: GiftName] (e.g. [Gift: 鲜花])
@@ -371,6 +372,8 @@ Never describe actions like *hands you a red packet*. Use [RedPacket: ...] comma
 
                 // Re-apply Rich Media descriptions if raw content isn't descriptive enough
                 if (msg.msgType === 'image') content = `[User sent Image: ${msg.content}]`;
+                // Clarify that this is INPUT format.
+                if (msg.msgType === 'voice') content = `[Context: User sent Voice Message: "${msg.content}"]`;
                 if (msg.msgType === 'gift') content = `[User sent Gift: ${msg.metadata?.giftName || msg.content}]`;
                 if (msg.msgType === 'redpacket') content = `[User sent Red Packet: ${msg.metadata?.note}, Amount: ${msg.metadata?.amount}]`;
                 if (msg.msgType === 'transfer') content = `[User transferred money: ${msg.metadata?.amount}, Note: ${msg.metadata?.note}]`;
@@ -395,11 +398,19 @@ Never describe actions like *hands you a red packet*. Use [RedPacket: ...] comma
         // --- [NEW] Post-Instruction (Recency Bias) ---
         // 强化 Anti-OOC 和 时间感知
         const postTime = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-        const postSystem = `[System Reminder]
+        let postSystem = `[System Reminder]
 1. Current Time: ${postTime} (${uT.period(uT.hour)}). React to the time if relevant.
 2. STAY IN CHARACTER (${char.name}).
 3. RULE: TEXT ONLY. NO ACTIONS (*...*) OR THOUGHTS ((...)).
 4. FORMAT: ${String(replyCount).includes('-') ? 'BETWEEN' : 'EXACTLY'} ${replyDisplay} bubbles, split by single newline.`;
+
+        // [STRONG BILINGUAL ENFORCEMENT]
+        if (options.translationMode?.enabled) {
+            postSystem += `\n5. [CRITICAL] BILINGUAL MODE ACTIVE.
+   - OUTPUT FORMAT IS STRICTLY: "Original Content (Character's Native Language) ||| Translated Content (Chinese)"
+   - You MUST include the separator " ||| ".
+   - DO NOT REVERSE THE ORDER (Translation MUST be LAST).`;
+        }
 
         messages.push({ role: 'system', content: postSystem });
         // ---------------------------------------------

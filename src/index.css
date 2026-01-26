@@ -67,3 +67,18 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Global Safe Area Utilities */
+.pt-safe-top {
+  padding-top: 44px !important;
+  /* Fallback increased */
+  padding-top: calc(constant(safe-area-inset-top) + 32px) !important;
+  padding-top: calc(env(safe-area-inset-top) + 32px) !important;
+}
+
+.pb-safe-bottom {
+  padding-bottom: 20px !important;
+  /* Fallback */
+  padding-bottom: constant(safe-area-inset-bottom) !important;
+  padding-bottom: env(safe-area-inset-bottom) !important;
+}

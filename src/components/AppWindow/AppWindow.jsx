@@ -22,7 +22,7 @@ const APP_COMPONENTS = {
 };
 
 const AppWindow = () => {
-    const { activeAppId, closeApp } = useApp();
+    const { activeAppId, closeApp, appParams } = useApp();
     const app = activeAppId ? appRegistry[activeAppId] : null;
 
     // 获取当前 App 对应的组件
@@ -40,7 +40,7 @@ const AppWindow = () => {
                 >
                     {/* 如果找到了组件，就渲染组件；否则显示开发中提示 */}
                     {ActiveComponent ? (
-                        <ActiveComponent onClose={closeApp} />
+                        <ActiveComponent onClose={closeApp} initialParams={appParams?.[activeAppId]} />
                     ) : (
                         <IOSPage
                             title={app.name}

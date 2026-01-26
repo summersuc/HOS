@@ -20,11 +20,11 @@ const AppIcon = ({ app, inDock = false, onClick }) => {
     };
 
     return (
-        <div className="flex flex-col items-center gap-1 group w-[60px] sm:w-[70px]">
+        <div className={`flex flex-col items-center gap-1 group ${inDock ? 'w-[50px] sm:w-[60px]' : 'w-[60px] sm:w-[70px]'}`}>
             <motion.button
                 whileTap={{ scale: 0.9 }}
                 data-app-id={app.id}
-                className={`relative aspect-square w-full rounded-2xl overflow-hidden shadow-icon ${inDock ? '' : 'bg-transparent'}`}
+                className={`relative aspect-square w-full ${inDock ? 'rounded-[16px]' : 'rounded-[22px]'} overflow-hidden shadow-icon ${inDock ? '' : 'bg-transparent'}`}
                 onClick={handleClick}
             >
                 {/* 
@@ -45,32 +45,32 @@ const AppIcon = ({ app, inDock = false, onClick }) => {
                     // Case B: System Icon (Jelly Glass Style - CSS Recipe)
                     return (
                         <div
-                            className="absolute inset-0 flex items-center justify-center transition-all bg-gradient-to-br from-white/40 via-white/10 to-white/5 dark:from-white/5 dark:via-white/[0.02] dark:to-transparent border border-white/20 dark:border-white/5"
+                            className="absolute inset-0 flex items-center justify-center transition-all bg-gradient-to-br from-white/[0.05] via-transparent to-transparent dark:from-white/[0.01] dark:via-transparent dark:to-transparent border border-white/5 dark:border-white/[0.02]"
                             style={{
-                                // VisionOS Glass Recipe (Geometry & Effects)
-                                backdropFilter: 'blur(12px) saturate(120%)',
-                                WebkitBackdropFilter: 'blur(12px) saturate(120%)',
+                                // Ultra-Thin Glass Recipe
+                                backdropFilter: 'blur(4px) saturate(110%)',
+                                WebkitBackdropFilter: 'blur(4px) saturate(110%)',
                                 boxShadow: `
-                                    inset 0 1px 0 0 rgba(255, 255, 255, var(--glass-highlight-opacity)),
-                                    inset 0 -1px 0 0 rgba(255, 255, 255, var(--glass-border-opacity)),
-                                    0 8px 20px -5px rgba(0, 0, 0, var(--glass-shadow-opacity))
+                                    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+                                    inset 0 -1px 0 0 rgba(255, 255, 255, 0.02),
+                                    0 4px 12px -2px rgba(0, 0, 0, 0.05)
                                 `
                             }}
                         >
                             {(() => {
                                 if (typeof finalIcon === 'function' || typeof finalIcon === 'object') {
                                     const IconComponent = finalIcon;
-                                    // Symbol: Dark Gray (Light) / White (Dark) + Drop Shadow
+                                    // Symbol: Professional Gray (Light) / Silver Gray (Dark) + Drop Shadow
                                     return (
-                                        <div style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}>
-                                            <IconComponent className="text-gray-700 dark:text-white" size={32} strokeWidth={2} />
+                                        <div style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}>
+                                            <IconComponent className="text-[#8E8E93] dark:text-[#AEAEB2]" size={32} strokeWidth={2.5} />
                                         </div>
                                     );
                                 }
                                 return (
                                     <span
-                                        className="text-2xl font-bold text-gray-700 dark:text-white"
-                                        style={{ textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+                                        className="text-2xl font-bold text-[#8E8E93] dark:text-[#AEAEB2]"
+                                        style={{ textShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
                                     >
                                         {displayName[0]}
                                     </span>

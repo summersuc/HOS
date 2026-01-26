@@ -1,5 +1,6 @@
 import React from 'react';
-import { Book, Sliders, ChevronRight, Sparkles } from 'lucide-react';
+import { Book, Sliders } from 'lucide-react';
+import { ChevronRight, Sparkles } from '../icons';
 import { triggerHaptic } from '../../../utils/haptics';
 import { motion } from 'framer-motion';
 

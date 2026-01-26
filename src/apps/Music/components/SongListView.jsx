@@ -82,12 +82,12 @@ const SongListView = ({ playlistId, initialData, onBack, onPlaySong, onOpenSearc
 
     return (
         <div
-            className="h-full bg-[#F5F5F7] dark:bg-black overflow-y-auto no-scrollbar scroll-smooth relative font-sans overscroll-contain"
+            className="h-full bg-[#F5F5F7] dark:bg-black overflow-y-auto no-scrollbar scroll-smooth relative font-sans overscroll-none"
             onScroll={(e) => setScrollY(e.currentTarget.scrollTop)}
         >
             {/* --- Sticky Header (Glass) --- */}
             <div
-                className={`fixed top-0 left-0 right-0 z-40 px-4 py-3 min-h-[64px] pb-safe-top pt-safe-top flex items-center justify-between transition-all duration-300 ${scrollY > 200
+                className={`fixed top-0 left-0 right-0 z-40 px-4 py-3 min-h-[64px] pb-safe-top pt-[calc(env(safe-area-inset-top)+10px)] flex items-center justify-between transition-all duration-300 ${scrollY > 200
                     ? 'bg-[#F5F5F7]/95 dark:bg-[#1C1C1E]/95 backdrop-blur-3xl shadow-sm border-b border-black/5 dark:border-white/5'
                     : 'bg-transparent'
                     }`}
@@ -120,7 +120,7 @@ const SongListView = ({ playlistId, initialData, onBack, onPlaySong, onOpenSearc
                     <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60" />
                 </div>
 
-                <div className="relative z-10 h-full flex flex-col justify-end px-6 pb-12 pt-20">
+                <div className="relative z-10 h-full flex flex-col justify-end px-6 pb-12 pt-[calc(env(safe-area-inset-top)+30px)]">
                     <div className="flex space-x-5 items-end mb-4">
                         <motion.img
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}

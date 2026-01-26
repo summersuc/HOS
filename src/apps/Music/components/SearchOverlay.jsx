@@ -164,7 +164,7 @@ const SearchOverlay = ({
             {/* Search Header */}
             <div
                 ref={suggestRef}
-                className="px-4 pt-4 pb-2 bg-white dark:bg-black/80 backdrop-blur-md sticky top-0 z-[60]"
+                className="px-4 pt-[calc(env(safe-area-inset-top)+20px)] pb-2 bg-white dark:bg-black/80 backdrop-blur-md sticky top-0 z-[60]"
             >
                 <div className="flex items-center space-x-2 mb-3 bg-gray-100 dark:bg-white/10 p-2 rounded-xl">
                     <Search size={18} className="text-gray-400 ml-1" />

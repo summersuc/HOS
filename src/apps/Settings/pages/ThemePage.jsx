@@ -3,11 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import IOSPage from '../../../components/AppWindow/IOSPage';
 import { db } from '../../../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useTheme } from '../../../context/ThemeContext';
 import { appRegistry } from '../../../config/appRegistry';
 import WidgetCenterPage from './WidgetCenterPage';
 import FontPage from './FontPage';
-import { Image, AppWindow, LayoutGrid, Type } from 'lucide-react';
 import { triggerHaptic } from '../../../utils/haptics';
+import {
+    LightModeIcon,
+    DarkModeIcon,
+    WallpaperIconIcon,
+    AppIconIcon,
+    WidgetIconIcon,
+    FontIconIcon,
+    BackIcon
+} from '../icons';
 
 // Sub-components (could be in separate files, kept here for simplicity/context first)
 // 1. Wallpaper Manager
@@ -104,44 +113,81 @@ const WallpaperSection = ({ onBack }) => {
         });
     };
 
+    const [imageUrl, setImageUrl] = useState('');
+
+    const saveWallpaper = async (blob) => {
+        try {
+            // 1. 尝试存入数据库 (使用 Promise.race 防止死锁)
+            try {
+                const dbPromise = db.wallpaper.put({ id: 'current', type: 'image', data: blob });
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_TIMEOUT')), 2000));
+
+                await Promise.race([dbPromise, timeoutPromise]);
+                setWallpaperBlob(blob); // 更新预览
+                alert('壁纸设置成功！✨');
+            } catch (dbError) {
+                console.warn('DB write failed/timeout, trying localStorage fallback', dbError);
+
+                // 2. 数据库挂了？启用 localStorage 应急方案
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        localStorage.setItem('hos_wallpaper_fallback', reader.result);
+                        window.dispatchEvent(new Event('wallpaper-changed-fallback'));
+                        setWallpaperBlob(blob); // 更新预览 (虽然是内存中的)
+                        alert('壁纸设置成功！✨');
+                    } catch (lsError) {
+                        alert('系统存储完全已满，无法保存壁纸。');
+                    }
+                };
+                reader.readAsDataURL(blob);
+            }
+        } catch (error) {
+            console.error('Save wallpaper error:', error);
+            alert(`保存失败: ${error.message}`);
+        }
+    };
+
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         setUploading(true);
         try {
-            // 1. 先尝试压缩
             const compressedBlob = await compressImage(file);
-
-            // 2. 尝试存入数据库 (使用 Promise.race 防止死锁)
-            try {
-                // 设置一个 2秒 的超时，如果 Dexie 卡死直接报错
-                const dbPromise = db.wallpaper.put({ id: 'current', type: 'image', data: compressedBlob });
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_TIMEOUT')), 2000));
-
-                await Promise.race([dbPromise, timeoutPromise]);
-                alert('壁纸已设置！(数据库存储)');
-            } catch (dbError) {
-                console.warn('DB write failed/timeout, trying localStorage fallback', dbError);
-
-                // 3. 数据库挂了？启用 localStorage 应急方案
-                // 转 Base64 并且更疯狂地压缩以适应 5MB 限制
-                const reader = new FileReader();
-                reader.onload = () => {
-                    try {
-                        localStorage.setItem('hos_wallpaper_fallback', reader.result);
-                        // 手动触发更新
-                        window.dispatchEvent(new Event('wallpaper-changed-fallback'));
-                        alert('壁纸设置成功！✨'); // 静默切换到 localStorage，不打扰用户
-                    } catch (lsError) {
-                        alert('系统存储完全已满，无法保存壁纸。');
-                    }
-                };
-                reader.readAsDataURL(compressedBlob);
-            }
+            await saveWallpaper(compressedBlob);
         } catch (error) {
-            console.error('Wallpaper upload error:', error);
-            // 如果是静默失败，不要弹窗吓用户
-            alert(`设置需重试: ${error.message}`);
+            console.error('File upload error:', error);
+            alert(`设置失败: ${error.message}`);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleUrlUpload = async () => {
+        if (!imageUrl || !imageUrl.trim().startsWith('http')) {
+            alert('请输入有效的图片 URL');
+            return;
+        }
+        setUploading(true);
+        try {
+            const response = await fetch(imageUrl);
+            if (!response.ok) throw new Error('网络请求失败，请检查链接是否有效');
+            const blob = await response.blob();
+
+            if (!blob.type.startsWith('image/')) {
+                throw new Error('该链接不是有效的图片文件');
+            }
+
+            const compressedBlob = await compressImage(blob);
+            await saveWallpaper(compressedBlob);
+            setImageUrl(''); // 清空输入框
+        } catch (error) {
+            console.error('URL upload error:', error);
+            if (error.message.includes('fetch')) {
+                alert('抓取失败：目标链接可能不支持跨域访问 (CORS)。');
+            } else {
+                alert(`上传失败: ${error.message}`);
+            }
         } finally {
             setUploading(false);
         }
@@ -158,7 +204,7 @@ const WallpaperSection = ({ onBack }) => {
     };
 
     return (
-        <IOSPage title="壁纸设置" onBack={onBack}>
+        <IOSPage title="壁纸设置" onBack={onBack} backIcon={<BackIcon size={20} />}>
             <div className="p-5 flex flex-col items-center space-y-6">
                 <div className="w-48 aspect-[9/19.5] bg-gray-100 dark:bg-black rounded-2xl shadow-xl overflow-hidden relative border-[6px] border-gray-200 dark:border-[#2C2C2E]">
                     {wallpaperUrl ? (
@@ -169,16 +215,35 @@ const WallpaperSection = ({ onBack }) => {
                     <div className="absolute bottom-3 left-2 right-2 h-10 bg-white/30 backdrop-blur-md rounded-xl"></div>
                 </div>
 
-                <div className="flex gap-4 w-full">
-                    <label className="flex-1 bg-blue-500 text-white rounded-xl py-3.5 text-sm font-semibold flex items-center justify-center cursor-pointer shadow-lg shadow-blue-200 dark:shadow-none active:scale-95 transition-transform">
-                        {uploading ? 'Processing...' : '上传图片'}
-                        <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-                    </label>
-                    <button onClick={handleReset} className="px-6 py-3.5 bg-gray-100 dark:bg-[#2C2C2E] text-gray-600 dark:text-white rounded-xl text-sm font-semibold active:scale-95 transition-transform">
-                        默认
-                    </button>
+                <div className="w-full space-y-4">
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            value={imageUrl}
+                            onChange={(e) => setImageUrl(e.target.value)}
+                            placeholder="输入图片 URL..."
+                            className="flex-1 bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all dark:text-white"
+                        />
+                        <button
+                            onClick={handleUrlUpload}
+                            disabled={uploading || !imageUrl}
+                            className="px-4 py-3 bg-blue-500 text-white rounded-xl text-sm font-semibold active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100"
+                        >
+                            上传
+                        </button>
+                    </div>
+
+                    <div className="flex gap-4 w-full">
+                        <label className="flex-1 bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl py-3.5 text-sm font-semibold flex items-center justify-center cursor-pointer active:scale-95 transition-transform border border-blue-200/50 dark:border-blue-500/30">
+                            {uploading ? '处理中...' : '选择本地图片'}
+                            <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                        </label>
+                        <button onClick={handleReset} className="px-6 py-3.5 bg-gray-100 dark:bg-[#2C2C2E] text-gray-600 dark:text-white rounded-xl text-sm font-semibold active:scale-95 transition-transform border border-transparent dark:border-white/5">
+                            恢复默认
+                        </button>
+                    </div>
                 </div>
-                <p className="text-xs text-gray-400 text-center">建议尺寸: 1170x2532 (iPhone 12+)</p>
+                <p className="text-[10px] text-gray-400 text-center">建议尺寸: 1170x2532，支持直接粘贴链接</p>
             </div>
         </IOSPage>
     );
@@ -228,7 +293,7 @@ const IconManagerSection = ({ onBack }) => {
     };
 
     return (
-        <IOSPage title="图标与名称" onBack={onBack}>
+        <IOSPage title="图标与名称" onBack={onBack} backIcon={<BackIcon size={20} />}>
             <div className="p-4 space-y-4 pb-24">
                 {Object.values(appRegistry).map(app => {
                     const override = appOverrides?.find(a => a.id === app.id);
@@ -286,6 +351,7 @@ const IconManagerSection = ({ onBack }) => {
 const ThemePage = ({ onBack }) => {
     const [subPage, setSubPage] = useState(null);
     const [themeModeValue, setThemeModeValue] = useState('light');
+    const { resetToDefaults } = useTheme();
 
     // SAFE MODE INIT
     useEffect(() => {
@@ -328,9 +394,18 @@ const ThemePage = ({ onBack }) => {
         }
     };
 
+    const handleResetDefaults = async () => {
+        if (confirm('确定要恢复默认桌面布局吗？这将清除所有自定义排列和小组件。')) {
+            await resetToDefaults();
+            alert('已恢复默认布局 ✨');
+            // Optional: Force reload to ensure fresh state if needed, but context update should handle it
+            // window.location.reload(); 
+        }
+    };
+
     const HubItem = ({ icon, title, desc, color, onClick }) => (
         <button onClick={(e) => { triggerHaptic(); onClick(e); }} className="bg-white dark:bg-[#1C1C1E] p-4 rounded-2xl shadow-card border border-gray-50 dark:border-white/5 flex flex-col items-center gap-2 active:scale-95 transition-all text-center h-32 justify-center group">
-            <div className={`w-12 h-12 rounded-full ${color} text-white flex items-center justify-center text-xl shadow-icon group-hover:scale-110 transition-transform`}>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl group-hover:scale-110 transition-transform ${color}`}>
                 {icon}
             </div>
             <div>
@@ -342,22 +417,17 @@ const ThemePage = ({ onBack }) => {
 
     return (
         <>
-            <IOSPage title="Theme Hub" onBack={onBack}>
+            <IOSPage title="主题美化" onBack={onBack} backIcon={<BackIcon size={20} />}>
                 <div className="p-5 pb-24 space-y-6">
-                    {/* Hero Section / Current Status */}
-                    <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none relative overflow-hidden">
-                        <div className="relative z-10">
-                            <h2 className="text-2xl font-bold">HOS Design</h2>
-                            <p className="opacity-80 text-sm mt-1">打造你的专属小手机 v2.3 (Safe Mode)</p>
-                        </div>
-                        <div className="absolute right-[-20px] bottom-[-20px] opacity-20 text-9xl">🎨</div>
-                    </div>
-
                     {/* Dark Mode Toggle (Quick Action) */}
                     <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-sm border border-gray-50 dark:border-white/5 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#2C2C2E] flex items-center justify-center text-lg">
-                                {themeModeValue === 'dark' ? '🌙' : '☀️'}
+                                {themeModeValue === 'dark' ? (
+                                    <DarkModeIcon size={20} color="currentColor" className="text-indigo-400 dark:text-indigo-400" />
+                                ) : (
+                                    <LightModeIcon size={20} color="currentColor" className="text-yellow-400 dark:text-yellow-400" />
+                                )}
                             </div>
                             <div>
                                 <h3 className="font-medium text-gray-900 dark:text-white text-sm">深色模式</h3>
@@ -374,26 +444,34 @@ const ThemePage = ({ onBack }) => {
                     {/* Grid Menu */}
                     <div className="grid grid-cols-2 gap-4">
                         <HubItem
-                            icon={<Image size={24} />} title="壁纸" desc="Wallpaper"
-                            color="bg-gradient-to-br from-blue-400 to-blue-500 shadow-blue-200 dark:shadow-none"
+                            icon={<WallpaperIconIcon size={30} />} title="壁纸" desc="Wallpaper"
+                            color="bg-transparent text-blue-400 dark:text-blue-400"
                             onClick={() => setSubPage('wallpaper')}
                         />
                         <HubItem
-                            icon={<AppWindow size={24} />} title="应用图标" desc="Customize Icons"
-                            color="bg-gradient-to-br from-pink-400 to-pink-500 shadow-pink-200 dark:shadow-none"
+                            icon={<AppIconIcon size={30} />} title="应用图标" desc="Customize Icons"
+                            color="bg-transparent text-pink-400 dark:text-pink-400"
                             onClick={() => setSubPage('icons')}
                         />
                         <HubItem
-                            icon={<LayoutGrid size={24} />} title="小组件" desc="Widgets Center"
-                            color="bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-200 dark:shadow-none"
+                            icon={<WidgetIconIcon size={30} />} title="小组件" desc="Widgets Center"
+                            color="bg-transparent text-orange-400 dark:text-orange-400"
                             onClick={() => setSubPage('widgets')}
                         />
                         <HubItem
-                            icon={<Type size={24} />} title="字体" desc="Typography"
-                            color="bg-gradient-to-br from-teal-400 to-teal-500 shadow-teal-200 dark:shadow-none"
+                            icon={<FontIconIcon size={30} />} title="字体" desc="Typography"
+                            color="bg-transparent text-teal-400 dark:text-green-400"
                             onClick={() => setSubPage('fonts')}
                         />
                     </div>
+
+                    {/* Reset Button */}
+                    <button
+                        onClick={handleResetDefaults}
+                        className="w-full py-4 bg-red-50 dark:bg-red-900/10 text-red-500 rounded-2xl text-sm font-semibold active:scale-95 transition-transform border border-red-100 dark:border-red-900/20"
+                    >
+                        恢复默认桌面布局
+                    </button>
                 </div>
             </IOSPage>
 

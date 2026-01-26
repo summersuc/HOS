@@ -1,6 +1,7 @@
 import React from 'react';
 import Avatar from '../components/Avatar';
-import { Search, Plus, Star, ChevronRight, Users } from 'lucide-react';
+import { Search, Star, Users } from 'lucide-react';
+import { Plus, ChevronRight } from '../icons';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';

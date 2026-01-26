@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import Avatar from '../components/Avatar';
 import { motion, AnimatePresence, useMotionValue, useAnimation, useDragControls } from 'framer-motion';
-import { Send, MoreVertical, RotateCcw, Copy, Trash2, User, PlusCircle, Mic, Image as ImageIcon, Smile, Gift, Wallet, MoreHorizontal, X, Edit2, Reply, ChevronRight, Settings, Sparkles, ArrowRightLeft, MessageCircle, Bug, FolderPlus, Check, Square, CheckSquare, Plus, Upload, Music, Heart } from 'lucide-react';
+import { MoreVertical, User, X, Settings, MessageCircle, Square, CheckSquare } from 'lucide-react';
+import { ChevronRight, Heart, MoreHorizontal, PlusCircle, Smile, Send, Mic, Image as ImageIcon, Reply, Edit2, Copy, RotateCcw, Trash2, Gift, Wallet, ArrowRightLeft, Music, Sparkles, Bug, FolderPlus, Upload, Check, Plus, RedPacket, Play } from '../icons';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
@@ -15,14 +16,14 @@ import TranslationBubble from '../components/TranslationBubble';
 import AlertModal from '../../../components/common/AlertModal';
 import BilingualSmartBubble from '../components/BilingualSmartBubble';
 import MusicPickerModal from '../components/MusicPickerModal';
-import MusicBubble from '../components/MusicBubble';
 import ListenTogetherPlayer from '../components/ListenTogetherPlayer';
 import { useAudio } from '../../../hooks/useAudio';
 import { useListenTogether } from '../../../hooks/useListenTogether';
 import { MusicService } from '../../../services/MusicService';
 import DebugLogModal from '../components/DebugLogModal';
+import VoiceBubble from '../components/VoiceBubble';
 
-const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings }) => {
+const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings, initialAttachment }) => {
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [selectedMsg, setSelectedMsg] = useState(null);
@@ -89,6 +90,15 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
     useEffect(() => {
         return storageService.subscribe(() => setStorageVersion(v => v + 1));
     }, []);
+
+    // Handle External Share (Listen Together)
+    useEffect(() => {
+        if (initialAttachment) {
+            setPendingAttachment(initialAttachment);
+            // Optionally focus input or trigger other UI states
+            setPanelMode('none');
+        }
+    }, [initialAttachment]);
 
     // Unified Wallpaper Resolver - now reactive to storage updates
     const displayWallpaper = React.useMemo(() => {
@@ -331,12 +341,11 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
 
         // Helper to process a single logical line (Text + Translation + Commands)
         const processLine = (lineStr) => {
-            // 1. Split Translation (|||)
-            // Check for " ||| " or tight "|||"
+            // 1. Check for '|||' separation globally first
             let contentPart = lineStr;
             let translationPart = null;
 
-            const sepIdx = lineStr.indexOf('|||'); // Covers " ||| " and "|||"
+            const sepIdx = lineStr.indexOf('|||');
             if (sepIdx !== -1) {
                 contentPart = lineStr.substring(0, sepIdx).trim();
                 translationPart = lineStr.substring(sepIdx + 3).trim();
@@ -344,17 +353,32 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
 
             if (!contentPart) return;
 
-            // 2. Check for Commands in contentPart
-            const CMD_REGEX = /\[(Sticker|RedPacket|Transfer|Gift|Image|图片)[:：]\s*(.*?)\]/i;
+            // 2. Check contentPart for Command
+            const CMD_REGEX = /\[\s*(Sticker|RedPacket|Transfer|Gift|Image|图片|Voice|语音|Music|(?:Context:\s*)?User\s+sent\s+Voice\s+Message)[:：]\s*(.*?)\]/i;
             const match = contentPart.match(CMD_REGEX);
 
             if (match) {
                 // It's a command
                 const typeStr = match[1].toLowerCase();
-                const argsStr = match[2].trim();
+                let argsStr = match[2].trim();
                 let msgType = 'text';
-                let finalContent = contentPart;
+                let finalContent = contentPart; // Default to full part
                 let metadata = {};
+
+                // If translationPart is still null, check inside args (e.g. AI put it inside brackets)
+                if (!translationPart && argsStr.includes('|||')) {
+                    const parts = argsStr.split('|||');
+                    argsStr = parts[0].trim();
+                    translationPart = parts[1].trim();
+                }
+
+                // Clean up translation part if it's also wrapped in a command (Recursive Fix)
+                if (translationPart) {
+                    // Strip all [Sticker: ...], [Voice: ...], etc tags from translation
+                    // We can use a global replacement to remove everything inside brackets that looks like a command
+                    const cleanTransRegex = /\[\s*(Sticker|RedPacket|Transfer|Gift|Image|图片|Voice|语音|Music|(?:Context:\s*)?User\s+sent\s+Voice\s+Message)[:：]\s*(.*?)\s*\]/gi;
+                    translationPart = translationPart.replace(cleanTransRegex, (match, p1, p2) => p2.trim()).trim();
+                }
 
                 if (typeStr === 'sticker') {
                     msgType = 'sticker';
@@ -378,40 +402,32 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     msgType = 'image';
                     metadata = { description: argsStr };
                     finalContent = argsStr;
-                    metadata = { description: argsStr };
-                    finalContent = argsStr;
-                } else if (typeStr === 'music' && argsStr.toLowerCase() === 'next') {
-                    // AI Requested Skip
-                    playNextTrack();
-                    return; // Don't show command bubble, just skip? Or show text "Skipping..."?
-                    // Let's allow it to fall through if there is text, but usually command is standalone.
-                    // If the AI output "[Music: Next]", we execute and maybe show a system bubble?
-                    // Actually, let's treat it as a side-effect and NOT add a message bubble for the command itself if it's purely a command.
-                    // But usually AI says "Nah explanation. [Music: Next]".
-                    // So we strip the command from content?
-                    // Let's strip it from displayed content.
-                    finalContent = finalContent.replace(match[0], '').trim();
-                    if (!finalContent) return; // If only command, don't show bubble
-                    // Wait, if I return here, I don't add to queue.
-                }
+                } else if (typeStr.includes('voice') || typeStr.includes('语音')) {
+                    // Covers 'voice', 'user sent voice message', 'context: user sent voice message'
+                    msgType = 'voice';
 
-                // Special handling for Music Skip Command within text
-                if (contentPart.includes('[Music: Next]')) {
-                    playNextTrack();
-                    finalContent = contentPart.replace('[Music: Next]', '').trim();
-                    if (!finalContent) return;
-                    msgType = 'text'; // Fallback to text if mixed
-                }
+                    // Cleanup quotes if AI added them
+                    argsStr = argsStr.replace(/^["']|["']$/g, '');
 
-                if (contentPart.includes('[Music: Play')) {
-                    // Basic handling for Play command (Experimental)
-                    // Extract query? For now, just ignore or treat as text.
-                    // finalContent = "AI tried to play music (Not implemented yet)";
-                }
+                    // Estimate duration
+                    const duration = Math.min(60, Math.max(2, Math.ceil(argsStr.length * 0.3)));
+                    metadata = { duration };
 
-                // Attach translation if present
-                if (translationPart) {
-                    metadata.translation = translationPart;
+                    if (translationPart) {
+                        finalContent = `${argsStr} ||| ${translationPart}`;
+                    } else {
+                        finalContent = argsStr;
+                    }
+                } else if (typeStr === 'music') {
+                    // Handle Music Command
+                    if (argsStr.toLowerCase() === 'next') {
+                        playNextTrack();
+                        return; // Side effect only
+                    }
+                    if (argsStr.toLowerCase().startsWith('play')) {
+                        // Placeholder for play command
+                        // finalContent = `[Music: ${argsStr}]`;
+                    }
                 }
 
                 addToQueue({
@@ -421,7 +437,31 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                 });
 
             } else {
-                // Plain Text
+                // No Command -> Pure Text (or Text + Translation)
+                let contentPart = lineStr;
+                let translationPart = null;
+
+                const sepIdx = lineStr.indexOf('|||');
+                if (sepIdx !== -1) {
+                    contentPart = lineStr.substring(0, sepIdx).trim();
+                    translationPart = lineStr.substring(sepIdx + 3).trim();
+
+                    // Also strip command tags from pure text translation
+                    if (translationPart) {
+                        const cleanTransRegex = /\[\s*(Sticker|RedPacket|Transfer|Gift|Image|图片|Voice|语音|Music|(?:Context:\s*)?User\s+sent\s+Voice\s+Message)[:：]\s*(.*?)\s*\]/gi;
+                        translationPart = translationPart.replace(cleanTransRegex, (match, p1, p2) => p2.trim()).trim();
+                    }
+                }
+
+                if (!contentPart) return;
+
+                // Handle mixed content like "[Music: Next]" if regex failed or strictly text check
+                if (contentPart.includes('[Music: Next]')) {
+                    playNextTrack();
+                    contentPart = contentPart.replace('[Music: Next]', '').trim();
+                    if (!contentPart) return;
+                }
+
                 addToQueue({
                     type: 'text',
                     content: contentPart,
@@ -532,22 +572,15 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
             if (pendingAttachment?.type === 'music_card') {
                 const data = pendingAttachment.data;
                 const isPlaylist = data.type === 'playlist';
-
-                // Clear attachment first
                 setPendingAttachment(null);
 
-                // Auto-enable Listen Together Mode
-                setListenTogether(true);
-                setShowMiniPlayer(true);
+                // Trigger Auto-Play
+                handleAutoPlayMusic(data);
 
                 // Construct Descriptive Content for AI
-                // Clearly distinguish between Song and Playlist to avoid confusion
-                let musicContent = '';
-                if (isPlaylist) {
-                    musicContent = `[User invites you to Listen Together: Playlist "${data.title}" - ${data.trackCount} tracks]`;
-                } else {
-                    musicContent = `[User invites you to Listen Together: Song "${data.title}" by ${data.artist}]`;
-                }
+                let musicContent = isPlaylist
+                    ? `[User invites you to Listen Together: Playlist "${data.title}" - ${data.trackCount} tracks]`
+                    : `[User invites you to Listen Together: Song "${data.title}" by ${data.artist}]`;
 
                 await db.messengerMessages.add({
                     conversationType: 'single',
@@ -556,7 +589,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     content: musicContent,
                     msgType: 'music_card',
                     metadata: data,
-                    timestamp: Date.now() - 100 // Ensure it comes before text if timestamps are same
+                    timestamp: Date.now() - 100
                 });
             }
 
@@ -589,6 +622,25 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                 setReplyTo(null);
             }
 
+            // Handle special User Commands for testing (Voice)
+            const voiceMatch = contentToSend.match(/^\[(Voice|语音)[:：]\s*(.*?)\]$/i);
+            if (voiceMatch) {
+                const voiceContent = voiceMatch[2];
+                const duration = Math.min(60, Math.max(2, Math.ceil(voiceContent.length * 0.3)));
+
+                await db.messengerMessages.add({
+                    conversationType: 'single',
+                    conversationId: safeCid,
+                    role: 'user',
+                    content: voiceContent,
+                    msgType: 'voice',
+                    metadata: { duration },
+                    timestamp: Date.now()
+                });
+                await runAI(null); // Context builder will pick up the just-added msg from DB
+                return;
+            }
+
             await db.messengerMessages.add({
                 conversationType: 'single',
                 conversationId: safeCid,
@@ -601,21 +653,16 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
         } else {
             // Handle Music Attachment (if sending empty text but has attachment)
             if (pendingAttachment?.type === 'music_card') {
-                // Duplicate logic? Encapsulate? For now just copy since it's simple.
                 const data = pendingAttachment.data;
                 const isPlaylist = data.type === 'playlist';
                 setPendingAttachment(null);
 
-                // Auto-enable Listen Together Mode
-                setListenTogether(true);
-                setShowMiniPlayer(true);
+                // Trigger Auto-Play
+                handleAutoPlayMusic(data);
 
-                let musicContent = '';
-                if (isPlaylist) {
-                    musicContent = `[User invites you to Listen Together: Playlist "${data.title}" - ${data.trackCount} tracks]`;
-                } else {
-                    musicContent = `[User invites you to Listen Together: Song "${data.title}" by ${data.artist}]`;
-                }
+                let musicContent = isPlaylist
+                    ? `[User invites you to Listen Together: Playlist "${data.title}" - ${data.trackCount} tracks]`
+                    : `[User invites you to Listen Together: Song "${data.title}" by ${data.artist}]`;
 
                 await db.messengerMessages.add({
                     conversationType: 'single',
@@ -626,7 +673,6 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     metadata: data,
                     timestamp: Date.now()
                 });
-                // Trigger AI since it's a standalone action
                 await runAI(null);
                 return;
             }
@@ -683,7 +729,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
         });
 
         setActionModal(null);
-        setShowExtras(false);
+        setPanelMode('none');
         triggerHaptic();
     };
 
@@ -717,6 +763,43 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
 
         // Focus input to encourage typing
         setTimeout(() => inputRef.current?.focus(), 100);
+    };
+
+    const handleAutoPlayMusic = async (data) => {
+        const isPlaylist = data.type === 'playlist';
+
+        // Auto-enable Listen Together UI
+        setListenTogether(true);
+        setShowMiniPlayer(true);
+
+        try {
+            if (isPlaylist) {
+                // Fetch full playlist tracks
+                const res = await MusicService.getPlaylistDetail(data.songId);
+                const tracks = res.songs;
+                if (tracks && tracks.length > 0) {
+                    const first = tracks[0];
+                    const urlRes = await MusicService.getSongUrl(first.id);
+                    if (urlRes?.data?.[0]?.url) {
+                        playTrack(first, urlRes.data[0].url, tracks);
+                    }
+                }
+            } else {
+                // Play single song
+                const urlRes = await MusicService.getSongUrl(data.songId);
+                if (urlRes?.data?.[0]?.url) {
+                    const track = {
+                        id: data.songId,
+                        name: data.title,
+                        ar: [{ name: data.artist }],
+                        al: { picUrl: data.cover }
+                    };
+                    playTrack(track, urlRes.data[0].url, [track]);
+                }
+            }
+        } catch (err) {
+            console.error("[Listen Together] Auto-play failed:", err);
+        }
     };
 
     const renderBubbleContent = (msg, index) => {
@@ -794,7 +877,19 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                         />
                     );
                 case 'music_card':
-                    return <MusicBubble content={msg.content} metadata={msg.metadata} isUser={msg.role === 'user'} />;
+                    return <MusicBubble
+                        content={msg.content}
+                        metadata={msg.metadata}
+                        isUser={msg.role === 'user'}
+                        onPlay={() => handleAutoPlayMusic(msg.metadata)}
+                    />;
+                case 'voice':
+                    return <VoiceBubble
+                        content={msg.content}
+                        duration={msg.metadata?.duration}
+                        isUser={msg.role === 'user'}
+                        borderRadius={getBubbleCorners(msg, index, messages)}
+                    />;
                 default: return <div>{msg.content}</div>;
             }
         }
@@ -803,7 +898,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
     };
 
     // Bubble Style Helpers (Union Logic)
-    const getBubbleStyle = (msg, index, allMessages, isTransparent = false) => {
+    const getBubbleCorners = (msg, index, allMessages) => {
         const isUser = msg.role === 'user';
         const prevMsg = allMessages[index - 1];
         const nextMsg = allMessages[index + 1];
@@ -823,11 +918,17 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
         } else if (!isFirst && isLast) {
             borderRadius = isUser ? 'rounded-2xl rounded-tr-sm' : 'rounded-2xl rounded-tl-sm';
         }
+        return borderRadius;
+    };
+
+    const getBubbleStyle = (msg, index, allMessages, isTransparent = false) => {
+        const isUser = msg.role === 'user';
+        const borderRadius = getBubbleCorners(msg, index, allMessages);
 
         const base = `max-w-[68%] relative cursor-pointer text-[14px] leading-snug transition-all ${borderRadius} `;
 
         // Special Cards (Rich Media) -> No Padding/Color
-        if (['sticker', 'image', 'gift', 'transfer', 'redpacket', 'music_card'].includes(msg.msgType)) {
+        if (['sticker', 'image', 'gift', 'transfer', 'redpacket', 'music_card', 'voice'].includes(msg.msgType)) {
             return "max-w-[80%] relative cursor-pointer " + borderRadius;
         }
 
@@ -1009,9 +1110,9 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
             {isListenTogether && (
                 <button
                     onClick={() => setShowMiniPlayer(!showMiniPlayer)}
-                    className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors active:scale-95 ${showMiniPlayer ? 'bg-green-500 text-white' : 'active:bg-gray-100 dark:active:bg-[#2C2C2E]'}`}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors active:scale-95 ${showMiniPlayer ? 'bg-blue-500/10 dark:bg-blue-400/20' : 'active:bg-gray-100 dark:active:bg-[#2C2C2E]'}`}
                 >
-                    <Music size={20} className={showMiniPlayer ? "text-white" : "text-gray-900 dark:text-white"} />
+                    <Music size={20} className={showMiniPlayer ? "text-[#5B7FFF] dark:text-[#7FA9FF]" : "text-gray-900 dark:text-white"} />
                 </button>
             )}
             <button onClick={() => onSettings(safeCid, characterId)} className="w-8 h-8 flex items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-[#2C2C2E]">
@@ -1130,7 +1231,11 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                 {/* {customBubbleCss && <style>{customBubbleCss}</style>} */}
 
                 {/* Listen Together Floating Player (Controlled) */}
-                <ListenTogetherPlayer visible={showMiniPlayer} onClose={() => setShowMiniPlayer(false)} />
+                <ListenTogetherPlayer
+                    visible={showMiniPlayer}
+                    onClose={() => setShowMiniPlayer(false)}
+                    conversationId={safeCid}
+                />
 
                 {/* Messages List */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pb-4 pt-[calc(50px+env(safe-area-inset-top)+1rem)] space-y-2 relative z-10" onClick={() => { setSelectedMsg(null); setShowMenu(false); }}>
@@ -1151,8 +1256,8 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                         const showTime = !prevMsg || (msg.timestamp - prevMsg.timestamp > 5 * 60 * 1000);
 
                         // Handle System, Revoked, or Hidden Event Messages
-                        if (msg.role === 'system' || msg.msgType === 'revoked' || msg.msgType === 'event_music_change') {
-                            if (msg.msgType === 'event_music_change') return null; // Completely hide music events from UI
+                        if (msg.role === 'system' || msg.msgType === 'revoked' || msg.msgType === 'event_music_change' || msg.msgType === 'event_music_history') {
+                            if (msg.msgType === 'event_music_change' || msg.msgType === 'event_music_history') return null; // Completely hide music events from UI
                             return (
                                 <div key={msg.id} className="flex flex-col gap-2 my-1.5">
                                     {showTime && (
@@ -1212,7 +1317,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                             msg={msg}
                                             translationMode={{
                                                 ...translationMode,
-                                                enabled: translationMode.enabled && !['sticker', 'image', 'gift', 'transfer', 'redpacket', 'music_card'].includes(msg.msgType)
+                                                enabled: translationMode.enabled && !['sticker', 'image', 'gift', 'transfer', 'redpacket', 'music_card', 'voice'].includes(msg.msgType)
                                             }}
                                             isUser={msg.role === 'user'}
                                             visualClass={getBubbleStyle(msg, index, messages, false)} // Always pass the FULL visual style to children
@@ -1302,12 +1407,13 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                         >
                             <div className="grid grid-cols-4 gap-y-3 gap-x-1 p-3 pb-4">
                                 <ExtraBtn icon={ImageIcon} label="图片" onClick={() => setActionModal({ type: 'image', label: '发送图片' })} />
-                                <ExtraBtn icon={Gift} label="礼物" onClick={() => setActionModal({ type: 'gift', label: '送礼物' })} color="text-pink-500 dark:text-pink-400" bg="bg-pink-50 dark:bg-pink-900/30" />
-                                <ExtraBtn icon={Wallet} label="转账" onClick={() => setActionModal({ type: 'transfer', label: '转账' })} color="text-blue-500 dark:text-blue-400" bg="bg-blue-50 dark:bg-blue-900/30" />
-                                <ExtraBtn icon={MoreHorizontal} label="红包" onClick={() => setActionModal({ type: 'redpacket', label: '发红包' })} color="text-red-500 dark:text-red-400" bg="bg-red-50 dark:bg-red-900/30" />
-                                <ExtraBtn icon={Music} label="音乐" onClick={() => setShowMusicPicker(true)} color="text-green-500 dark:text-green-400" bg="bg-green-50 dark:bg-green-900/30" />
-                                <ExtraBtn icon={Sparkles} label="重新生成" onClick={handleRegenerateLast} color="text-purple-500 dark:text-purple-400" bg="bg-purple-50 dark:bg-purple-900/30" />
-                                <ExtraBtn icon={Bug} label="Debug" onClick={() => setShowDebugLog(true)} color="text-gray-500" bg="bg-gray-100 dark:bg-gray-800" />
+                                <ExtraBtn icon={Mic} label="语音" onClick={() => setActionModal({ type: 'voice', label: '发送语音' })} />
+                                <ExtraBtn icon={Gift} label="礼物" onClick={() => setActionModal({ type: 'gift', label: '送礼物' })} />
+                                <ExtraBtn icon={Wallet} label="转账" onClick={() => setActionModal({ type: 'transfer', label: '转账' })} />
+                                <ExtraBtn icon={RedPacket} label="红包" onClick={() => setActionModal({ type: 'redpacket', label: '发红包' })} />
+                                <ExtraBtn icon={Music} label="音乐" onClick={() => setShowMusicPicker(true)} />
+                                <ExtraBtn icon={Sparkles} label="重新生成" onClick={handleRegenerateLast} />
+                                <ExtraBtn icon={Bug} label="Debug" onClick={() => setShowDebugLog(true)} />
                             </div>
                         </motion.div>
                     )}
@@ -1687,7 +1793,51 @@ const SettingsDrawer = ({ isOpen, onClose, initialHistory, initialReply, initial
                                             <input type="file" accept="image/*" className="hidden" onChange={handleWallpaperUpload} />
                                         </label>
 
-                                        {/* URL Input */}
+                                        {/* Pending Attachment Preview */}
+                                        <AnimatePresence>
+                                            {pendingAttachment && pendingAttachment.type === 'music_card' && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                    className="mx-4 mb-2 overflow-hidden"
+                                                >
+                                                    <div className="relative flex items-center gap-3 p-3 bg-white/80 dark:bg-[#2C2C2E]/80 backdrop-blur-xl rounded-2xl shadow-lg border border-[#FF3B30]/20 ring-1 ring-[#FF3B30]/10">
+                                                        {/* Blurred Glow */}
+                                                        <div
+                                                            className="absolute -left-4 -top-4 w-20 h-20 bg-[#FF3B30]/20 blur-2xl rounded-full pointer-events-none"
+                                                        />
+
+                                                        <img
+                                                            src={pendingAttachment.data.cover}
+                                                            className="relative w-12 h-12 rounded-lg object-cover shadow-sm bg-gray-100 dark:bg-black/20"
+                                                        />
+                                                        <div className="relative flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-0.5">
+                                                                <span className="text-[10px] font-bold text-white bg-[#FF3B30] px-1.5 py-px rounded-full shadow-sm shadow-red-500/20">
+                                                                    待发送
+                                                                </span>
+                                                                <span className="text-[10px] text-gray-400 font-medium">一起听邀请</span>
+                                                            </div>
+                                                            <h4 className="text-sm font-bold text-gray-900 dark:text-white truncate leading-tight">
+                                                                {pendingAttachment.data.title}
+                                                            </h4>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                                                {pendingAttachment.data.artist}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setPendingAttachment(null)}
+                                                            className="relative p-2 bg-gray-100 dark:bg-white/10 rounded-full text-gray-500 hover:text-gray-700 dark:hover:text-white transition-colors active:scale-90"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+
+                                        {/* Voice Input Bubble */}
                                         <div className="flex-1 flex flex-col gap-2">
                                             <input
                                                 className="w-full bg-gray-50 dark:bg-black/30 rounded-xl px-3 py-2 text-xs dark:text-white outline-none"
@@ -1907,6 +2057,12 @@ const ActionModal = ({ action, onClose, onSubmit, onStickerSelect }) => {
         } else if (action.type === 'redpacket') {
             data.content = "红包: " + field1 + ", 祝福: " + field2;
             data.metadata = { amount: field1, note: field2 };
+        } else if (action.type === 'voice') {
+            data.content = field1;
+            // Approx duration: 0.3s per char, min 2s, max 60s
+            // Users want to simulate voice, so just mapping length to duration is fine
+            const duration = Math.min(60, Math.max(2, Math.ceil(field1.length * 0.3)));
+            data.metadata = { duration };
         }
 
         onSubmit(data);
@@ -1942,6 +2098,15 @@ const ActionModal = ({ action, onClose, onSubmit, onStickerSelect }) => {
                             <input type="number" className="w-full bg-gray-100 dark:bg-[#2C2C2E] p-3 rounded-xl dark:text-white outline-none" placeholder="总金额 (¥)" value={field1} onChange={e => setField1(e.target.value)} autoFocus />
                             <input className="w-full bg-gray-100 dark:bg-[#2C2C2E] p-3 rounded-xl dark:text-white outline-none" placeholder="红包祝福语..." value={field2} onChange={e => setField2(e.target.value)} />
                         </>
+                    )}
+                    {action.type === 'voice' && (
+                        <textarea
+                            className="w-full h-32 bg-gray-100 dark:bg-[#2C2C2E] p-3 rounded-xl dark:text-white outline-none resize-none"
+                            placeholder="输入语音内容..."
+                            value={field1}
+                            onChange={e => setField1(e.target.value)}
+                            autoFocus
+                        />
                     )}
 
                     <button onClick={handleSubmit} className="w-full bg-[#5B7FFF] text-white py-3 rounded-xl font-medium active:scale-95 transition-transform">
@@ -1997,7 +2162,73 @@ const RichImageBubble = ({ content }) => {
     );
 };
 
-// --- Sticker Bubble ---
+// --- Music Bubble ---
+const MusicBubble = ({ content, metadata, isUser, onPlay }) => {
+    const isPlaylist = metadata?.type === 'playlist';
+
+    return (
+        <div
+            className={`relative w-[240px] overflow-hidden rounded-[24px] shadow-xl transition-all duration-300 group cursor-pointer active:scale-[0.98] hover:shadow-2xl ${isUser ? 'mr-0.5' : 'ml-0.5'}`}
+            onClick={(e) => { e.stopPropagation(); onPlay?.(); }}
+        >
+            {/* Ambient Background & Blur */}
+            <div
+                className="absolute inset-0 bg-cover bg-center opacity-40 blur-2xl scale-125 transition-transform duration-700 group-hover:scale-110"
+                style={{ backgroundImage: `url(${metadata?.cover})` }}
+            />
+            <div className={`absolute inset-0 ${isUser ? 'bg-black/10' : 'bg-white/40 dark:bg-black/40'}`} />
+
+            {/* Main Content Container */}
+            <div className={`relative flex flex-col h-full backdrop-blur-3xl border rounded-[24px] overflow-hidden ${isUser
+                ? 'bg-white/85 dark:bg-[#1C1C1E]/80 border-white/40 dark:border-white/10'
+                : 'bg-white/90 dark:bg-[#1C1C1E]/90 border-white/60 dark:border-white/10'
+                }`}>
+
+                {/* Header Badge */}
+                <div className="absolute top-3 right-3 z-10">
+                    <div className="flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 backdrop-blur-md border border-black/5 dark:border-white/5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#FF3B30] animate-pulse" />
+                        <span className="text-[9px] font-bold text-gray-900 dark:text-white/90 uppercase tracking-wider">一起听</span>
+                    </div>
+                </div>
+
+                <div className="p-4 pt-5 flex items-center gap-4">
+                    {/* Cover Art */}
+                    {/* Cover Art - Pure Rotating Circle */}
+                    <div className="relative w-14 h-14 shrink-0 shadow-xl rounded-full group-hover:scale-105 transition-transform duration-500">
+                        <div className="w-full h-full rounded-full overflow-hidden shadow-lg animate-spin-slow ring-1 ring-black/5 dark:ring-white/10" style={{ animationDuration: '8s' }}>
+                            <img src={metadata?.cover} className="w-full h-full object-cover" />
+                        </div>
+                    </div>
+
+                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 pt-1">
+                        <span className="text-[15px] font-black leading-tight truncate tracking-tight text-gray-900 dark:text-white">
+                            {metadata?.title || 'Unknown Title'}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                            <User size={10} className="text-gray-500 dark:text-gray-400" />
+                            <span className="text-[11px] font-medium truncate text-gray-600 dark:text-gray-400">
+                                {metadata?.artist || 'Unknown User'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer / Interaction */}
+                <div className={`px-4 py-2.5 flex items-center justify-between border-t ${isUser ? 'border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5' : 'border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-white/5'
+                    }`}>
+                    <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400/80 tracking-wide">
+                        点击加入同步播放
+                    </span>
+                    <div className="p-1 rounded-full bg-black/5 dark:bg-white/10 group-hover:bg-[#FF3B30] group-hover:text-white transition-colors duration-300">
+                        <Play size={10} className="text-gray-900 dark:text-white group-hover:text-white" fill="currentColor" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- Sticker Bubble ---
 const StickerBubble = ({ stickerName }) => {
     // Clean up if it comes as "[Sticker: Name]"

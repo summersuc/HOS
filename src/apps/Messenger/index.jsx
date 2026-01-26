@@ -34,20 +34,68 @@ import { storageService } from '../../services/StorageService';
 import { llmService } from '../../services/LLMService';
 import NotificationService from '../../services/NotificationService';
 
-const Messenger = ({ onClose }) => {
+const Messenger = ({ onClose, initialParams }) => {
     const [activeTab, setActiveTab] = useState('chat');
     const [currentPage, setCurrentPage] = useState(null);
     const [pageStack, setPageStack] = useState([]);
     const [showNewMenu, setShowNewMenu] = useState(false);
     const [pickerMode, setPickerMode] = useState(null);
 
-    // Phase 2: Preload Avatars on Startup
     React.useEffect(() => {
         storageService.preloadTable('userPersonas');
         storageService.preloadTable('characters');
         storageService.preloadTable('blobs', 'data');
         storageService.preloadTable('chatWallpapers', 'data');
-    }, []);
+
+        // Listen for Cross-App Share Events
+        const handleShare = (e) => {
+            const { targetApp, action, data, targetId } = e.detail;
+            if (targetApp === 'messenger' && action === 'share-music') {
+                // Ensure we are on the Chat tab
+                setActiveTab('chat');
+                // Open the specific conversation
+                // We pass 'initialAttachment' to ChatDetail
+                // Note: We need to modify openPage/ChatDetail to accept this
+                // Construct a special page object or pass via state
+
+                // Let's pass it as a prop 'extraProps' or similar if openPage supports it, 
+                // or just modify openPage to take extra data.
+
+                // My openPage logic: setCurrentPage(page). Page is object { type, id... }
+                // I can add arbitrary data to this page object.
+
+                // First, find characterId if only convId is passed (optional, ChatDetail handles safeCid)
+                // But ChatDetail needs characterId for some logic? 
+                // Actually ChatDetail takes conversationId and characterId.
+                // We have targetId which is conversationId (convId).
+                // We should try to find the characterId associated if possible, or let ChatDetail handle it.
+                // However, openPage usually expects { type: 'chat', id: convId, characterId: ... }
+
+                db.conversations.get(targetId).then(conv => {
+                    if (conv) {
+                        openPage({
+                            type: 'chat',
+                            id: targetId,
+                            characterId: conv.characterId,
+                            initialAttachment: {
+                                type: 'music_card',
+                                data: data
+                            }
+                        }, false); // Don't push to stack if jumping? Or yes? Maybe false to reset context.
+                    }
+                });
+            }
+        };
+
+        window.addEventListener('hos-app-share', handleShare);
+
+        // Check for initial params (Launch from another app)
+        if (initialParams && initialParams.action === 'share-music') {
+            handleShare({ detail: { ...initialParams, targetApp: 'messenger' } });
+        }
+
+        return () => window.removeEventListener('hos-app-share', handleShare);
+    }, [initialParams]);
 
     const openPage = (page, pushToStack = true) => {
         if (pushToStack && currentPage) {
@@ -249,6 +297,7 @@ const Messenger = ({ onClose }) => {
                                 onBack={closePage}
                                 onProfile={(charId) => openPage({ type: 'profile', id: charId }, true)}
                                 onSettings={(convId, charId) => openPage({ type: 'chatSettings', conversationId: convId, characterId: charId }, true)}
+                                initialAttachment={page.initialAttachment}
                             />
                         );
                     }

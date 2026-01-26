@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Search, Plus, MessageCircle } from 'lucide-react';
+import { Search, MessageCircle } from 'lucide-react';
+import { Plus } from '../icons';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';
@@ -32,7 +33,18 @@ const ChatListTab = ({ onSelectChat, onShowNewMenu }) => {
                         .first();
 
                     if (lastMsg) {
-                        messages[conv.id] = lastMsg.content?.slice(0, 50) || '';
+                        let content = lastMsg.content || '';
+                        if (lastMsg.msgType === 'music_card') {
+                            const title = lastMsg.metadata?.title || '歌曲';
+                            content = `🎵 [一起听] ${title}`;
+                        } else if (lastMsg.msgType === 'voice') {
+                            content = `[语音]`;
+                        } else if (lastMsg.msgType === 'image') {
+                            content = `🖼️ [图片]`;
+                        } else if (lastMsg.msgType === 'sticker') {
+                            content = `[表情]`;
+                        }
+                        messages[conv.id] = content.slice(0, 50);
                     }
 
                     // Get unread count (messages after lastReadAt)

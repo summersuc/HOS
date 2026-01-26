@@ -6,7 +6,7 @@ import { motion, useAnimation, useMotionValue, useTransform, useDragControls } f
  * - Handles Slide In/Out animations (Optimized)
  * - Implements "Swipe to Go Back" gesture
  */
-const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = true, showBackButton = true }) => {
+const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = true, showBackButton = true, backIcon }) => {
     // Shared motion value for drag x position
     const x = useMotionValue(0);
     const controls = useAnimation();
@@ -133,7 +133,9 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
                                 onClick={onBack}
                                 className="p-2 flex items-center gap-1 text-gray-400 dark:text-gray-400 active:opacity-50 transition-opacity"
                             >
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                {backIcon ? backIcon : (
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                )}
                             </button>
                         )}
                         <span className="text-[17px] font-semibold text-gray-900 dark:text-white truncate max-w-[50%]">{title}</span>

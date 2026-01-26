@@ -1,7 +1,6 @@
-import ClockWidget from './System/ClockWidget';
 import PhotoWidget from './Media/PhotoWidget';
-import PolaroidWidget from './Media/PolaroidWidget';
-import WeatherWidget from './Info/WeatherWidget';
+import AnniversaryWidget from './Media/AnniversaryWidget';
+import MusicWidget from './Media/MusicWidget';
 
 export const WIDGET_SIZES = {
     ICON: '1x1',        // ~80x80
@@ -37,40 +36,31 @@ export const getWidgetSizeStyle = (size) => {
 };
 
 export const WidgetRegistry = {
-    'clock.digital': {
-        id: 'clock.digital',
-        name: '数字时钟',
-        category: WIDGET_CATEGORIES.SYSTEM,
-        component: ClockWidget,
-        availableSizes: [WIDGET_SIZES.SMALL, WIDGET_SIZES.MEDIUM, WIDGET_SIZES.WIDE_SMALL],
-        description: '简约的数字时钟，支持多种风格。',
-        hasConfig: false
-    },
     'media.photo': {
         id: 'media.photo',
         name: '精选照片',
         category: WIDGET_CATEGORIES.MEDIA,
         component: PhotoWidget,
-        availableSizes: [WIDGET_SIZES.SMALL, WIDGET_SIZES.MEDIUM, WIDGET_SIZES.LARGE],
+        availableSizes: [WIDGET_SIZES.SMALL],
         description: '展示您喜爱的照片。',
         hasConfig: true // Enables config modal
     },
-    'media.polaroid': {
-        id: 'media.polaroid',
-        name: '拍立得',
+    'media.anniversary': {
+        id: 'media.anniversary',
+        name: '纪念日',
         category: WIDGET_CATEGORIES.MEDIA,
-        component: PolaroidWidget,
-        availableSizes: [WIDGET_SIZES.SMALL, WIDGET_SIZES.VERTICAL_S, WIDGET_SIZES.VERTICAL_M],
-        description: '复古拍立得风格，记录美好瞬间。',
+        component: AnniversaryWidget,
+        availableSizes: [WIDGET_SIZES.SMALL],
+        description: '记录心动瞬间 (双头像/气泡/飘雪)。',
         hasConfig: true
     },
-    'info.weather': {
-        id: 'info.weather',
-        name: '实时天气',
-        category: WIDGET_CATEGORIES.TOOLS,
-        component: WeatherWidget,
+    'media.music': {
+        id: 'media.music',
+        name: '音乐',
+        category: WIDGET_CATEGORIES.MEDIA,
+        component: MusicWidget,
         availableSizes: [WIDGET_SIZES.SMALL, WIDGET_SIZES.MEDIUM],
-        description: '查看实时天气状况与预报。',
-        hasConfig: true // Needs city input
+        description: '控制当前播放的音乐。',
+        hasConfig: false
     }
 };

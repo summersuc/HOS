@@ -51,9 +51,9 @@ export default defineConfig({
     host: true,
     proxy: {
       '/music-api': {
-        target: 'http://127.0.0.1:3000',
+        target: 'https://api-enhanced-smoky.vercel.app',
         changeOrigin: true,
-        secure: false, // 忽略 SSL 证书问题
+        secure: false,
         rewrite: (path) => path.replace(/^\/music-api/, '')
       }
     }

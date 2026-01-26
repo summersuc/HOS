@@ -3,6 +3,7 @@ import WidgetBase from '../WidgetBase';
 import { WIDGET_SIZES } from '../registry';
 import { motion } from 'framer-motion';
 import { storageService } from '../../../services/StorageService';
+import { db } from '../../../db/schema';
 
 const PolaroidWidget = ({ settings, size = WIDGET_SIZES.SMALL }) => {
     // Settings: imageType ('blob' | 'url'), imagePayload (blobId | urlString), text
@@ -16,25 +17,11 @@ const PolaroidWidget = ({ settings, size = WIDGET_SIZES.SMALL }) => {
         let active = true;
         const load = async () => {
             if (imageType === 'blob' && imagePayload) {
-                // Async fetch blob URL
-                // We use 'blobs' table based on our ConfigModal implementation
                 const cached = storageService.getCachedBlobUrl('blobs', imagePayload);
                 if (cached) {
                     if (active) setDisplayImage(cached);
                 } else {
-                    // Force load if not in memory (ConfigModal saved it, but maybe page reload happened)
-                    // StorageService doesn't have a specific 'blobs' loader exposed easily besides Cache
-                    // So we might need to manually trigger a load or use a helper.
-                    // Actually storageService.preloadTable('blobs') might be heavy.
-                    // Let's implement a single fetch in storage service OR just trust the cache if we preloaded.
-                    // For now, let's try to fetch from DB if not in cache (StorageService v2 style)
-                    // But wait, StorageService assumes we preload? 
-                    // Let's add a quick single-fetch capability to StorageService if needed or just use db direct here?
-                    // Better: Use a helper or just db.
-
                     try {
-                        // Dynamically import db to avoid cycle if possible, or just assume it works
-                        const { db } = await import('../../../db/schema');
                         const record = await db.blobs.get(imagePayload);
                         if (record && record.data) {
                             const url = URL.createObjectURL(record.data);

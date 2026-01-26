@@ -16,7 +16,15 @@ import { Search, Play, Pause, SkipForward, Compass, Library } from 'lucide-react
 
 const MusicApp = ({ onClose }) => {
     // Auth & Data State
-    const [profile, setProfile] = useState(null);
+    // Auth & Data State
+    const [profile, setProfile] = useState(() => {
+        try {
+            const cached = localStorage.getItem('MUSIC_PROFILE');
+            return cached ? JSON.parse(cached) : null;
+        } catch (e) {
+            return null;
+        }
+    });
 
     // Toast
     const { showToast, ToastComponent } = useToast();
@@ -61,7 +69,7 @@ const MusicApp = ({ onClose }) => {
 
                     {/* My Music Tab */}
                     <div className="absolute inset-0 w-full h-full overflow-y-auto no-scrollbar overscroll-contain" style={{ display: rootTab === 'playlists' ? 'block' : 'none' }}>
-                        <div className="pt-safe-top pb-32 space-y-4">
+                        <div className="pt-[calc(env(safe-area-inset-top)+20px)] pb-32 space-y-4">
                             <ProfileHeader profile={profile} />
                             <PlaylistView userId={profile?.userId} onSelectPlaylist={handleSelectPlaylist} />
                         </div>
@@ -105,8 +113,10 @@ const MusicApp = ({ onClose }) => {
         mode, toggleMode, queue
     } = useAudio();
 
-    // Global Loading
-    const [globalLoading, setGlobalLoading] = useState(true);
+    // Global Loading - Fast Start if Cached
+    const [globalLoading, setGlobalLoading] = useState(() => {
+        return !localStorage.getItem('MUSIC_PROFILE');
+    });
 
     useEffect(() => {
         checkLoginStatus();
@@ -116,7 +126,11 @@ const MusicApp = ({ onClose }) => {
         const res = await MusicService.checkLogin();
         if (res?.data?.profile) {
             setProfile(res.data.profile);
+            localStorage.setItem('MUSIC_PROFILE', JSON.stringify(res.data.profile));
+            setGlobalLoading(false);
         } else {
+            setProfile(null);
+            localStorage.removeItem('MUSIC_PROFILE');
             setGlobalLoading(false);
         }
     };
@@ -401,7 +415,10 @@ const MusicApp = ({ onClose }) => {
 
                             {/* Floating Search Header (Discovery Only - Root) */}
                             {isRoot && rootTab === 'discovery' && (
-                                <div className="absolute top-0 left-0 right-0 z-40 px-4 py-2 pt-safe-top pointer-events-none">
+                                <div
+                                    className="absolute left-0 right-0 z-40 px-4 py-2 pointer-events-none"
+                                    style={{ top: 'calc(env(safe-area-inset-top) + 7px)' }}
+                                >
                                     <div
                                         onClick={handleSearchOpen}
                                         className="pointer-events-auto flex items-center space-x-2 bg-white/80 dark:bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-full active:scale-95 transition-transform border border-black/5 dark:border-white/5 shadow-sm"

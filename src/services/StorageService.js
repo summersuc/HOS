@@ -106,6 +106,46 @@ class StorageService {
     }
 
     /**
+     * Async load blob with full fallback chain (Cache -> DB -> LocalStorage)
+     */
+    async getBlob(table, id) {
+        if (!id) return null;
+
+        // 1. Try Memory Cache
+        const cached = this.getCachedBlobUrl(table, id);
+        if (cached) return cached;
+
+        // 2. Try IndexedDB
+        try {
+            const record = await db.table(table).get(id);
+            if (record && record.data) {
+                // Handle Blob vs Base64 storage
+                const url = record.data instanceof Blob
+                    ? URL.createObjectURL(record.data)
+                    : record.data; // assume string/base64
+
+                this.cache.set(this._getKey(table, id), url);
+                return url;
+            }
+        } catch (e) {
+            console.warn(`[Storage] DB Load failed for ${table}:${id}`, e);
+        }
+
+        // 3. Try LocalStorage Fallback
+        try {
+            const prefix = `hos_fb_${table}_`;
+            const key = `${prefix}${id}`;
+            const base64 = localStorage.getItem(key);
+            if (base64) {
+                this.cache.set(this._getKey(table, id), base64);
+                return base64;
+            }
+        } catch (e) { console.error("LS Load Failed", e); }
+
+        return null;
+    }
+
+    /**
      * Save a blob with fallback protection
      * @param {string} table 
      * @param {string|number} id - Providing an ID is crucial. If 'new', logic is complex, handled outside usually.

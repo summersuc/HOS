@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import { Plus, Check, Settings, ChevronRight, Sparkles, Palette, User, Bot } from 'lucide-react';
+import { Settings, Palette, User, Bot } from 'lucide-react';
+import { Plus, Check, ChevronRight, Sparkles } from '../icons';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 import { triggerHaptic } from '../../../utils/haptics';

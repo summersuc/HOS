@@ -1,13 +1,13 @@
 import {
-    Settings, MessageSquare, Globe, StickyNote, Calendar, Gamepad2, Music
-} from 'lucide-react';
+    SettingsIcon, ChatIcon, SmallWorldIcon, NotesIcon, CalendarIcon, MusicIcon, HeartbeatIcon, GameIcon
+} from '../components/common/HandDrawnIcons';
 
 export const appRegistry = {
     settings: {
         id: 'settings',
         name: '设置',
-        icon: Settings,
-        color: '#8E8E93', // System Gray
+        icon: SettingsIcon,
+        color: '#8E8E93',
         component: 'Settings',
         transmissionMode: 'C',
         notificationEnabled: false,
@@ -15,8 +15,8 @@ export const appRegistry = {
     messenger: {
         id: 'messenger',
         name: '信息',
-        icon: MessageSquare,
-        color: '#34C759', // System Green
+        icon: ChatIcon,
+        color: '#8E8E93',
         component: 'Messenger',
         transmissionMode: 'A',
         notificationEnabled: true,
@@ -24,8 +24,8 @@ export const appRegistry = {
     world: {
         id: 'world',
         name: '小世界',
-        icon: Globe,
-        color: '#AF52DE', // System Purple
+        icon: SmallWorldIcon,
+        color: '#8E8E93',
         component: 'SmallWorld',
         transmissionMode: 'A',
         notificationEnabled: true,
@@ -33,8 +33,8 @@ export const appRegistry = {
     notes: {
         id: 'notes',
         name: '便笺',
-        icon: StickyNote,
-        color: '#FFCC00', // System Yellow
+        icon: NotesIcon,
+        color: '#8E8E93',
         component: 'Notes',
         transmissionMode: 'B',
         notificationEnabled: false,
@@ -42,29 +42,38 @@ export const appRegistry = {
     calendar: {
         id: 'calendar',
         name: '日历',
-        icon: Calendar,
-        color: '#FF3B30', // System Red
+        icon: CalendarIcon,
+        color: '#8E8E93',
         component: 'Calendar',
         transmissionMode: 'B',
         notificationEnabled: true,
     },
+    music: {
+        id: 'music',
+        name: '音乐',
+        icon: MusicIcon,
+        color: '#8E8E93',
+        component: 'Music',
+        transmissionMode: 'C',
+        notificationEnabled: false,
+    },
     games: {
         id: 'games',
         name: '游戏',
-        icon: Gamepad2,
-        color: '#5856D6', // System Indigo
+        icon: GameIcon,
+        color: '#8E8E93',
         component: 'Games',
         transmissionMode: 'C',
         notificationEnabled: false,
     },
-    music: {
-        id: 'music',
-        name: '音乐',
-        icon: Music,
-        color: '#FF2D55', // System Pink
-        component: 'Music',
-        transmissionMode: 'C',
-        notificationEnabled: false,
+    heartbeat: {
+        id: 'heartbeat',
+        name: '心动',
+        icon: HeartbeatIcon,
+        color: '#8E8E93',
+        component: 'Heartbeat',
+        transmissionMode: 'A',
+        notificationEnabled: true,
     },
 };
 

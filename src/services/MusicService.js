@@ -3,7 +3,7 @@
  * Handles communication with the NeteaseCloudMusicApi via Vite Proxy
  */
 // Use environment variable for API URL in production, fallback to local proxy for dev
-const API_BASE = 'https://api-enhanced-smoky.vercel.app';
+const API_BASE = '/music-api';
 
 export const MusicService = {
     async request(endpoint, options = {}, retries = 1) {
@@ -21,10 +21,12 @@ export const MusicService = {
             separator = '&';
 
             // 2. 注入 Auth Cookie (手动管理跨域 Cookie)
+            const isNoCookie = url.includes('noCookie=true');
             const storedCookie = localStorage.getItem('NETEASE_COOKIE');
-            if (storedCookie) {
+            if (storedCookie && !isNoCookie) {
                 // 部分接口可能需要对其编码，但通常直接传即可，保险起见 encodeURIComponent
                 url += `${separator}cookie=${encodeURIComponent(storedCookie)}`;
+                separator = '&';
             }
 
             // 3. 注入 Timestamp 防止缓存

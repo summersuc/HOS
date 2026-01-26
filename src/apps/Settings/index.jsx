@@ -7,11 +7,16 @@ import ThemePage from './pages/ThemePage';
 import DataPage from './pages/DataPage';
 import IOSPage from '../../components/AppWindow/IOSPage';
 
-import {
-    ChevronLeft, ChevronRight, Cpu, Bell, Palette, Database, Info
-} from 'lucide-react';
-
 import { triggerHaptic } from '../../utils/haptics';
+import {
+    BrainIcon,
+    NotificationIcon,
+    PaletteIcon,
+    DataIcon,
+    InfoIcon,
+    ChevronIcon,
+    BackIcon
+} from './icons';
 
 const SettingsItem = ({ icon: Icon, title, onClick, color }) => (
     <motion.div
@@ -20,12 +25,12 @@ const SettingsItem = ({ icon: Icon, title, onClick, color }) => (
         className="flex items-center justify-between p-4 bg-white/60 dark:bg-[#1C1C1E]/80 backdrop-blur-md mb-3 rounded-2xl shadow-card cursor-pointer border border-white/40 dark:border-white/5 transition-colors duration-200 active:bg-white/80 dark:active:bg-[#2C2C2E]"
     >
         <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl shadow-icon ${color}`}>
+            <div className={`p-2 ${color}`}>
                 <Icon size={20} />
             </div>
             <span className="text-[17px] font-medium text-gray-800 dark:text-gray-100 tracking-wide">{title}</span>
         </div>
-        <ChevronRight size={20} className="text-gray-400" />
+        <ChevronIcon size={20} className="text-gray-400 opacity-60" />
     </motion.div>
 );
 
@@ -52,33 +57,45 @@ const Settings = ({ onClose }) => {
                     enableEnterAnimation={false} // AppWindow handles opening
                 >
                     <div className="absolute inset-0 flex flex-col bg-[#F2F4F6] dark:bg-black">
-                        {/* 顶部导航栏 */}
-                        <div className="h-[50px] shrink-0 flex items-center justify-between px-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-xl border-b border-gray-100 dark:border-[#2C2C2E] z-10 pt-[env(safe-area-inset-top)] box-content transition-colors duration-300">
-                            <button onClick={onClose} className="p-2 -ml-2 text-gray-800 dark:text-blue-500 font-semibold">
-                                <span className="flex items-center gap-1"><ChevronLeft /></span>
-                            </button>
-                            <span className="text-[17px] font-semibold text-gray-900 dark:text-white">设置</span>
-                            <div className="w-10"></div>
+                        {/* 顶部导航栏 - V3 Soft Gradient Blur Style */}
+                        <div className="absolute top-0 left-0 right-0 z-30">
+                            {/* Background Layer (Blur & Gradient) */}
+                            <div
+                                className="absolute top-0 left-0 right-0 h-28 pointer-events-none"
+                                style={{
+                                    background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
+                                    backdropFilter: 'blur(20px)',
+                                    WebkitBackdropFilter: 'blur(20px)',
+                                    maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+                                    WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)'
+                                }}
+                            />
+
+                            {/* Header Content */}
+                            <div className="relative h-[50px] flex items-center justify-between px-2 pt-[env(safe-area-inset-top)] box-content transition-colors duration-300">
+                                <button onClick={onClose} className="p-2 flex items-center gap-1 text-gray-400 dark:text-gray-400 active:opacity-50 transition-opacity">
+                                    <BackIcon size={20} />
+                                </button>
+                                <span className="text-[17px] font-semibold text-gray-900 dark:text-white">设置</span>
+                                <div className="w-[70px]"></div> {/* Balance spacer */}
+                            </div>
                         </div>
 
-                        {/* 内容区域 */}
-                        <div className="flex-1 overflow-y-auto p-5 pb-24 space-y-4">
-                            <div className="mt-2 mb-4">
-                                <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight transition-colors">Settings</h1>
-                                <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">管理你的星野小手机</p>
-                            </div>
+                        {/* 内容区域 - 增加 paddingTop 以适配绝对定位的顶栏 */}
+                        <div className="flex-1 overflow-y-auto p-5 pb-24 space-y-4 pt-[calc(60px+env(safe-area-inset-top))]">
+
 
                             {/* Group 1: General */}
                             {/* Group 1: General */}
                             <div className="space-y-3">
                                 <SettingsItem
-                                    icon={Cpu} title="大脑连接 (API)"
-                                    color="bg-gray-100/80 dark:bg-zinc-800/80 text-gray-500 dark:text-gray-400"
+                                    icon={BrainIcon} title="大脑连接 (API)"
+                                    color="bg-transparent text-gray-400 dark:text-gray-500"
                                     onClick={() => setView('api')}
                                 />
                                 <SettingsItem
-                                    icon={Bell} title="应用与通知"
-                                    color="bg-gray-100/80 dark:bg-zinc-800/80 text-gray-500 dark:text-gray-400"
+                                    icon={NotificationIcon} title="应用与通知"
+                                    color="bg-transparent text-gray-400 dark:text-gray-500"
                                     onClick={() => setView('apps')}
                                 />
                             </div>
@@ -86,8 +103,8 @@ const Settings = ({ onClose }) => {
                             {/* Group 2: Appearance */}
                             <div className="space-y-3">
                                 <SettingsItem
-                                    icon={Palette} title="主题美化"
-                                    color="bg-gray-100/80 dark:bg-zinc-800/80 text-gray-500 dark:text-gray-400"
+                                    icon={PaletteIcon} title="主题美化"
+                                    color="bg-transparent text-gray-400 dark:text-gray-500"
                                     onClick={() => setView('theme')}
                                 />
                             </div>
@@ -95,13 +112,13 @@ const Settings = ({ onClose }) => {
                             {/* Group 3: Data & Info */}
                             <div className="space-y-3">
                                 <SettingsItem
-                                    icon={Database} title="数据存储"
-                                    color="bg-gray-100/80 dark:bg-zinc-800/80 text-gray-500 dark:text-gray-400"
+                                    icon={DataIcon} title="数据存储"
+                                    color="bg-transparent text-gray-400 dark:text-gray-500"
                                     onClick={() => setView('data')}
                                 />
                                 <SettingsItem
-                                    icon={Info} title="关于 HOS"
-                                    color="bg-gray-100/80 dark:bg-zinc-800/80 text-gray-500 dark:text-gray-400"
+                                    icon={InfoIcon} title="关于 HOS"
+                                    color="bg-transparent text-gray-400 dark:text-gray-500"
                                     onClick={() => alert('HOSHINO OS v0.9\nMade with Love, React & Vite')}
                                 />
                             </div>

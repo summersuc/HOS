@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import WidgetBase from '../WidgetBase';
 import { WIDGET_SIZES } from '../registry';
 import { storageService } from '../../../services/StorageService';
+import { db } from '../../../db/schema';
 
 const PhotoWidget = ({ settings, size = WIDGET_SIZES.SMALL }) => {
     const { imageType, imagePayload } = settings || {};
 
-    // Default image
-    const defaultImage = "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=600&auto=format&fit=crop";
+    // Default image - White placeholder
+    const defaultImage = "https://placehold.co/400/FFFFFF/FFFFFF/png";
     const [displayImage, setDisplayImage] = useState(defaultImage);
 
     useEffect(() => {
@@ -19,7 +20,6 @@ const PhotoWidget = ({ settings, size = WIDGET_SIZES.SMALL }) => {
                     if (active) setDisplayImage(cached);
                 } else {
                     try {
-                        const { db } = await import('../../../db/schema');
                         const record = await db.blobs.get(imagePayload);
                         if (record && record.data) {
                             const url = URL.createObjectURL(record.data);
@@ -38,11 +38,11 @@ const PhotoWidget = ({ settings, size = WIDGET_SIZES.SMALL }) => {
     }, [imageType, imagePayload]);
 
     return (
-        <WidgetBase variant="solid" className="group overflow-hidden">
+        <WidgetBase variant="transparent" className="group overflow-visible flex items-center justify-center">
             <img
                 src={displayImage}
                 alt="Widget"
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                className="w-[150px] h-[150px] object-cover rounded-[22px] shadow-sm transition-transform duration-700 group-hover:scale-105"
             />
         </WidgetBase>
     );

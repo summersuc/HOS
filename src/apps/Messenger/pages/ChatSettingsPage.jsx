@@ -6,21 +6,18 @@ import { triggerHaptic } from '../../../utils/haptics';
 import IOSPage from '../../../components/AppWindow/IOSPage';
 import { storageService } from '../../../services/StorageService';
 import {
-    Image as ImageIcon,
     History,
     MessageCircle,
-    Sparkles,
     User,
-    Trash2,
     ChevronDown,
     Palette,
     Bot,
     Puzzle,
     UserCheck,
-    Check,
     Moon,
     Layout
 } from 'lucide-react';
+import { Image as ImageIcon, Sparkles, Trash2, Check } from '../icons';
 
 // --- Helper Components (Defined outside to prevent remounting) ---
 const ItemHeader = ({ icon: Icon, title, subtitle }) => (
