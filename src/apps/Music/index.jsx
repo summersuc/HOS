@@ -127,11 +127,12 @@ const MusicApp = ({ onClose }) => {
         if (res?.data?.profile) {
             setProfile(res.data.profile);
             localStorage.setItem('MUSIC_PROFILE', JSON.stringify(res.data.profile));
-            setGlobalLoading(false);
+            // Don't turn off loading here - wait for DiscoveryView to load data
+            // setGlobalLoading(false); 
         } else {
             setProfile(null);
             localStorage.removeItem('MUSIC_PROFILE');
-            setGlobalLoading(false);
+            setGlobalLoading(false); // If no login, turn off to show Login Page
         }
     };
 

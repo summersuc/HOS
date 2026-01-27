@@ -1,7 +1,7 @@
-# HoshinoOS (HOS) 项目开发规范 (Project Rules)
+# suki (suki) 项目开发规范 (Project Rules)
 
 > [!IMPORTANT]
-> 本文件定义了 HoshinoOS 项目的核心开发准则。AI 助手在进行任何编码工作前必须阅读并严格遵守。
+> 本文件定义了 suki 项目的核心开发准则。AI 助手在进行任何编码工作前必须阅读并严格遵守。
 
 ## 1. 核心原则 (Core Principles)
 - **语言**：所有思考过程、对话回复、Git Commit **必须** 使用 **中文**。
@@ -55,7 +55,7 @@
 - **壁纸/大图渲染**：
     - **必须** 优先检查 `storageService.getCachedBlobUrl()` 以利用预加载缓存，避免重复创建 ObjectURL 导致闪烁。
 
-### D. HoshinoOS 设计语言 (Design Language)
+### D. suki 设计语言 (Design Language)
 - **Glassmorphism**：
     - 背景：`bg-white/80 dark:bg-black/60` + `backdrop-blur-xl`
     - 边框：`border border-white/20`

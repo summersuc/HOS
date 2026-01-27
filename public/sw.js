@@ -14,7 +14,7 @@ self.addEventListener('push', (event) => {
     console.log('[Service Worker] Push Received.');
     console.log(`[Service Worker] Push had this data: "${event.data.text()}"`);
 
-    const title = 'HoshinoOS Notification';
+    const title = 'suki Notification';
     const options = {
         body: event.data.text() || 'New message available',
         icon: 'icons/icon-192.png',
@@ -27,7 +27,20 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', function (event) {
     console.log('[Service Worker] Notification click Received.');
     event.notification.close();
+
     event.waitUntil(
-        clients.openWindow('https://antigravity.google') // Placeholder URL
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+            // Focus first matching client
+            for (let i = 0; i < clientList.length; i++) {
+                const client = clientList[i];
+                if ('focus' in client) {
+                    return client.focus();
+                }
+            }
+            // If no clients open, open new window
+            if (clients.openWindow) {
+                return clients.openWindow('/');
+            }
+        })
     );
 });

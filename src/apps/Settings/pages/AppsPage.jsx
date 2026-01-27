@@ -124,7 +124,7 @@ const AppsPage = ({ onBack }) => {
                         <button
                             onClick={() => {
                                 triggerHaptic();
-                                NotificationService.send('HoshinoOS 即时通知', {
+                                NotificationService.send('suki 即时通知', {
                                     body: '这是一条测试消息，点击查看详情 💬',
                                     tag: 'test-instant'
                                 });
@@ -138,7 +138,7 @@ const AppsPage = ({ onBack }) => {
                             onClick={() => {
                                 triggerHaptic();
                                 alert('通知将在 5 秒后弹出，可以锁屏等待！');
-                                NotificationService.schedule('HoshinoOS 延迟通知', {
+                                NotificationService.schedule('suki 延迟通知', {
                                     body: '这是 5 秒后的锁屏通知测试 🔔',
                                     tag: 'test-delayed'
                                 }, 5000);

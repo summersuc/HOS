@@ -24,11 +24,11 @@ export const useListenTogether = () => {
         };
 
         window.addEventListener('storage', handleStorageChange);
-        window.addEventListener('hos-listen-together-change', handleCustomEvent);
+        window.addEventListener('suki-listen-together-change', handleCustomEvent);
 
         return () => {
             window.removeEventListener('storage', handleStorageChange);
-            window.removeEventListener('hos-listen-together-change', handleCustomEvent);
+            window.removeEventListener('suki-listen-together-change', handleCustomEvent);
         };
     }, []);
 
@@ -38,13 +38,13 @@ export const useListenTogether = () => {
         localStorage.setItem(STORAGE_KEY, String(newValue));
 
         // Dispatch local event for immediate UI update in other components
-        window.dispatchEvent(new CustomEvent('hos-listen-together-change', { detail: newValue }));
+        window.dispatchEvent(new CustomEvent('suki-listen-together-change', { detail: newValue }));
     };
 
     const set = (value) => {
         setIsEnabled(value);
         localStorage.setItem(STORAGE_KEY, String(value));
-        window.dispatchEvent(new CustomEvent('hos-listen-together-change', { detail: value }));
+        window.dispatchEvent(new CustomEvent('suki-listen-together-change', { detail: value }));
     }
 
     return { isEnabled, toggle, set };

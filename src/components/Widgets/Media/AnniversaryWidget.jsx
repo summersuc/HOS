@@ -104,7 +104,7 @@ const SnowEffect = ({ active }) => {
     return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-50 w-full h-full" />;
 };
 
-const AnniversaryWidget = ({ settings }) => {
+const AnniversaryWidget = ({ settings, size }) => {
     const {
         anniversaryId,
         leftAvatarType, leftAvatarPayload,
@@ -235,6 +235,7 @@ const AnniversaryWidget = ({ settings }) => {
     return (
         <WidgetBase
             variant="transparent"
+            size={size}
             className="group font-sans relative"
         >
             <div

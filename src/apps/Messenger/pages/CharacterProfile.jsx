@@ -17,7 +17,7 @@ const CharacterProfile = ({ characterId, onBack, onMessage, onEdit }) => {
         }>
             <div className="bg-[#F2F2F7] dark:bg-black min-h-full pb-10">
                 {/* Header Info */}
-                <div className="bg-gradient-to-b from-white/90 to-white/70 dark:from-[#1C1C1E]/90 dark:to-[#1C1C1E]/70 backdrop-blur-2xl pb-8 pt-6 px-4 flex flex-col items-center border-b border-gray-200/30 dark:border-white/8">
+                <div className="bg-gradient-to-b from-white/95 to-white/70 dark:from-[#1C1C1E]/95 dark:to-[#1C1C1E]/75 backdrop-blur-2xl pb-8 pt-6 px-4 flex flex-col items-center border-b border-gray-200/30 dark:border-white/8">
 
                     {/* 头像外圈渐变 - 高级白灰色 */}
                     <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-gray-200 via-white to-gray-300 dark:from-gray-600 dark:via-gray-500 dark:to-gray-700 p-[3px] shadow-2xl mb-5">

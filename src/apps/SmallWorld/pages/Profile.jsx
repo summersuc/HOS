@@ -1,109 +1,128 @@
-import React from 'react';
-import { ArrowLeft, MapPin, Calendar, Link as LinkIcon } from 'lucide-react';
-import Post from '../components/Feed/Post';
+import React, { useState } from 'react';
 import { useSmallWorld } from '../data/SmallWorldContext';
+import FeedItem from '../components/Feed/FeedItem';
+import { Settings, MoreHorizontal } from 'lucide-react';
 
-const Profile = ({ onBack }) => {
+const Profile = () => {
     const { currentUser, posts } = useSmallWorld();
+    const [activeTab, setActiveTab] = useState('posts');
 
-    // Filter posts for current user (mock)
-    const myPosts = posts.filter(p => p.authorId === currentUser.id);
+    // 过滤用户帖子
+    const myPosts = posts.filter(p => p.author.name === currentUser.name);
+
+    // Tab配置
+    const tabs = [
+        { id: 'home', label: '主页' },
+        { id: 'posts', label: '微博' },
+        { id: 'photos', label: '相册' }
+    ];
 
     return (
-        <div className="min-h-full pb-20 bg-white dark:bg-black">
-            {/* Header / Banner - Consistent with App Header */}
-            <div className="sticky top-0 z-10 flex items-center gap-4 px-4 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-white/10 pt-[calc(env(safe-area-inset-top)+12px)] pb-3">
-                {onBack && (
-                    <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-900 dark:text-white transition-colors">
-                        <ArrowLeft size={20} />
+        <div className="min-h-full bg-[#f2f2f2] dark:bg-black">
+            {/* 1. 封面图 */}
+            <div
+                className="sw-profile-cover"
+                style={{ backgroundImage: `url(${currentUser.coverImage})` }}
+            >
+                <div className="sw-cover-overlay" />
+
+                {/* 顶部操作按钮 */}
+                <div className="absolute top-0 left-0 right-0 flex justify-between items-center p-4 pt-[calc(env(safe-area-inset-top)+8px)] z-20">
+                    <button className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center text-white backdrop-blur-sm">
+                        <MoreHorizontal size={18} />
                     </button>
+                    <button className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center text-white backdrop-blur-sm">
+                        <Settings size={18} />
+                    </button>
+                </div>
+            </div>
+
+            {/* 2. 个人信息区域 */}
+            <div className="sw-profile-info">
+                <div className="px-4">
+                    {/* 头像 + 编辑按钮 */}
+                    <div className="sw-profile-header">
+                        <div className="sw-profile-avatar-wrap">
+                            <img
+                                src={currentUser.avatar}
+                                className="sw-profile-avatar"
+                                alt="avatar"
+                            />
+                        </div>
+                        <button className="sw-edit-btn">
+                            编辑资料
+                        </button>
+                    </div>
+
+                    {/* 用户信息 */}
+                    <div className="px-1">
+                        <h1 className="sw-profile-name">{currentUser.name}</h1>
+
+                        {/* 统计数据 */}
+                        <div className="sw-profile-stats">
+                            <div className="sw-stat-item">
+                                <span className="sw-stat-num">{currentUser.stats.following}</span>
+                                <span>关注</span>
+                            </div>
+                            <div className="sw-stat-item">
+                                <span className="sw-stat-num">{currentUser.stats.followers}</span>
+                                <span>粉丝</span>
+                            </div>
+                        </div>
+
+                        {/* 简介 */}
+                        <p className="sw-profile-bio">
+                            {currentUser.bio || "这个人很懒，什么都没有留下~"}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. Tab栏 */}
+            <div className="sw-profile-tabs">
+                <div className="flex">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`sw-profile-tab ${activeTab === tab.id ? 'active' : ''}`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* 4. 内容区域 */}
+            <div>
+                {activeTab === 'posts' && (
+                    <div className="space-y-0">
+                        {myPosts.length > 0 ? (
+                            myPosts.map(p => <FeedItem key={p.id} post={p} />)
+                        ) : (
+                            <div className="sw-empty-state bg-white dark:bg-[#1C1C1E]">
+                                <svg className="sw-empty-icon" viewBox="0 0 100 100" fill="currentColor">
+                                    <circle cx="50" cy="35" r="20" opacity="0.3" />
+                                    <path d="M20 75 Q50 55 80 75 L80 90 L20 90 Z" opacity="0.3" />
+                                </svg>
+                                <p className="sw-empty-text">
+                                    这里的世界静悄悄...<br />
+                                    <span className="text-[13px] opacity-70">发一条微博记录生活吧</span>
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 )}
-                <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">{currentUser.name}</h2>
-                    <p className="text-sm text-gray-500">{myPosts.length} 帖子</p>
-                </div>
-            </div>
 
-            {/* Banner Image */}
-            <div className="h-[200px] bg-gradient-to-r from-blue-400 to-indigo-500 dark:from-purple-800 dark:to-blue-600 relative">
-                {/* Optional: Add actual banner image if available */}
-            </div>
-
-            {/* Profile Info */}
-            <div className="px-4 relative mb-4">
-                <div className="absolute -top-[70px] left-4 border-4 border-white dark:border-black rounded-full p-0.5 bg-white dark:bg-black">
-                    <img
-                        src={currentUser.avatar}
-                        alt={currentUser.name}
-                        className="w-[136px] h-[136px] rounded-full object-cover bg-gray-200 dark:bg-gray-800"
-                    />
-                </div>
-                <div className="flex justify-end py-3">
-                    <button className="px-4 py-1.5 border border-gray-300 dark:border-white/30 rounded-full font-bold hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-gray-900 dark:text-white">
-                        编辑资料
-                    </button>
-                </div>
-
-                <div className="mt-2">
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">{currentUser.name}</h1>
-                    <p className="text-gray-500 text-[15px]">{currentUser.handle}</p>
-                </div>
-
-                <p className="mt-3 text-gray-900 dark:text-white leading-snug">
-                    {currentUser.bio}
-                </p>
-
-                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 text-gray-500 text-[15px]">
-                    <div className="flex items-center gap-1">
-                        <MapPin size={18} />
-                        <span>Hoshino OS</span>
+                {activeTab === 'home' && (
+                    <div className="sw-empty-state bg-white dark:bg-[#1C1C1E]">
+                        <p className="sw-empty-text">主页内容开发中...</p>
                     </div>
-                    <div className="flex items-center gap-1">
-                        <LinkIcon size={18} />
-                        <a href="#" className="text-blue-500 hover:underline">hoshino.os</a>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <Calendar size={18} />
-                        <span>加入于 2026年1月</span>
-                    </div>
-                </div>
+                )}
 
-                <div className="flex gap-4 mt-3 text-[15px]">
-                    <div className="flex gap-1 hover:underline cursor-pointer">
-                        <span className="font-bold text-gray-900 dark:text-white">123</span>
-                        <span className="text-gray-500">正在关注</span>
-                    </div>
-                    <div className="flex gap-1 hover:underline cursor-pointer">
-                        <span className="font-bold text-gray-900 dark:text-white">456</span>
-                        <span className="text-gray-500">关注者</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex border-b border-gray-200 dark:border-white/10 mt-2">
-                <div className="flex-1 text-center py-4 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer font-bold text-gray-900 dark:text-white relative">
-                    帖子
-                    <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-500 rounded-full"></div>
-                </div>
-                <div className="flex-1 text-center py-4 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer text-gray-500 font-medium">
-                    回复
-                </div>
-                <div className="flex-1 text-center py-4 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer text-gray-500 font-medium">
-                    媒体
-                </div>
-                <div className="flex-1 text-center py-4 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer text-gray-500 font-medium">
-                    喜爱
-                </div>
-            </div>
-
-            {/* Posts Feed for Profile */}
-            <div className="bg-white dark:bg-black">
-                {myPosts.length > 0 ? (
-                    myPosts.map(post => <Post key={post.id} post={post} />)
-                ) : (
-                    <div className="p-8 text-center text-gray-500">
-                        在这里还没有发布过内容
+                {activeTab === 'photos' && (
+                    <div className="sw-empty-state bg-white dark:bg-[#1C1C1E]">
+                        <p className="sw-empty-text">暂无相册内容</p>
                     </div>
                 )}
             </div>

@@ -1,5 +1,5 @@
 /**
- * HOS Notification Service
+ * suki Notification Service
  * Provides push notification functionality for PWA
  */
 
@@ -70,7 +70,7 @@ const NotificationService = {
             icon: '/pwa-192x192.png',
             badge: '/pwa-192x192.png',
             vibrate: [200, 100, 200],
-            tag: 'hos-notification',
+            tag: 'suki-notification',
             renotify: true,
             requireInteraction: false,
             ...options

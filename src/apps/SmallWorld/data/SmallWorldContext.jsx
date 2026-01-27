@@ -1,55 +1,57 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { MOCK_USERS, INITIAL_POSTS } from './mockData';
+import { MOCK_USER_CURRENT, INITIAL_POSTS } from './mockData';
 
 const SmallWorldContext = createContext();
 
 export const useSmallWorld = () => useContext(SmallWorldContext);
 
 export const SmallWorldProvider = ({ children }) => {
-    const [users] = useState(MOCK_USERS);
-    const [currentUser] = useState(MOCK_USERS['user_current']);
+    const [currentUser, setCurrentUser] = useState(MOCK_USER_CURRENT);
     const [posts, setPosts] = useState(() => {
-        const saved = localStorage.getItem('hos_smallworld_posts');
+        const saved = localStorage.getItem('suki_weibo_posts_v4');
         return saved ? JSON.parse(saved) : INITIAL_POSTS;
     });
 
     useEffect(() => {
-        localStorage.setItem('hos_smallworld_posts', JSON.stringify(posts));
+        localStorage.setItem('suki_weibo_posts_v4', JSON.stringify(posts));
     }, [posts]);
 
-    const addPost = (content, images = []) => {
+    // Update Profile (Avatar, Cover, Bio, Stats)
+    const updateProfile = (updates) => {
+        setCurrentUser(prev => ({ ...prev, ...updates }));
+    };
+
+    // Post Action (New Post or Repost)
+    const addPost = (content, images = [], originalPost = null) => {
         const newPost = {
-            id: `post_${Date.now()}`,
-            authorId: currentUser.id,
+            id: `p_${Date.now()}`,
+            author: {
+                name: currentUser.name,
+                avatar: currentUser.avatar
+            },
             content,
             images,
-            timestamp: Date.now(),
-            stats: { likes: 0, reposts: 0, replies: 0 },
-            isLiked: false
+            createdAt: Date.now(),
+            source: 'suki OS',
+            stats: { reposts: 0, comments: 0, likes: 0 },
+            isRepost: !!originalPost,
+            originalPost: originalPost
         };
         setPosts(prev => [newPost, ...prev]);
     };
 
     const toggleLike = (postId) => {
-        setPosts(prev => prev.map(post => {
-            if (post.id === postId) {
-                const isLiked = !post.isLiked;
-                return {
-                    ...post,
-                    isLiked,
-                    stats: {
-                        ...post.stats,
-                        likes: isLiked ? post.stats.likes + 1 : post.stats.likes - 1
-                    }
-                };
-            }
-            return post;
-        }));
+        // Simple mock implementation
+        setPosts(prev => prev.map(p =>
+            p.id === postId
+                ? { ...p, stats: { ...p.stats, likes: p.stats.likes + 1 } }
+                : p
+        ));
     };
 
     const value = {
-        users,
         currentUser,
+        updateProfile,
         posts,
         addPost,
         toggleLike

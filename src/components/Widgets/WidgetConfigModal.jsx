@@ -272,32 +272,61 @@ const WidgetConfigModal = ({ isOpen, onClose, widgetType, config, onConfirm }) =
     const [bgColor, setBgColor] = useState('transparent');
     const [showSnow, setShowSnow] = useState(true);
 
+    // --- Sticky Note States ---
+    const [stickyTopText, setStickyTopText] = useState('');
+    const [stickyMiddleText, setStickyMiddleText] = useState('');
+    const [stickyBottomText, setStickyBottomText] = useState('');
+    const [stickyBgOpacity, setStickyBgOpacity] = useState(100);
+    const [stickyPinColor, setStickyPinColor] = useState('#ff6b6b');
+
+    // --- Profile Widget States ---
+    const [profileAvatarId, setProfileAvatarId] = useState('');
+    const [profileAvatarType, setProfileAvatarType] = useState('url');
+    const [profileTitle, setProfileTitle] = useState('');
+    const [profileStatus, setProfileStatus] = useState('');
+
     const anniversaries = useLiveQuery(() => db.anniversaries.orderBy('date').toArray()) || [];
 
     if (!isOpen) return null;
 
-    const isWeather = widgetType.startsWith('info.weather');
-    const isPhoto = widgetType.includes('photo') || widgetType.includes('polaroid');
+    const isPhoto = widgetType === 'media.photo';
+    const isProfile = widgetType === 'media.profile';
     const isAnniversary = widgetType.includes('media.anniversary');
-
+    const isSticky = widgetType === 'text.sticky';
 
     const handleConfirm = async () => {
         setLoading(true);
         const settings = {};
 
         try {
-            if (text) settings.text = text;
+            if (isSticky) {
+                settings.topText = stickyTopText;
+                settings.middleText = stickyMiddleText;
+                settings.bottomText = stickyBottomText;
+                settings.bgColor = bgColor; // Reused state
+                settings.bgOpacity = stickyBgOpacity;
+                settings.pinColor = stickyPinColor;
 
-            if (isWeather) {
-                if (!city) { alert('请输入城市名称'); setLoading(false); return; }
-                settings.city = city;
+                settings.bgType = bgImageType; // Reused logical states
+                settings.bgImageId = bgImageId;
+                settings.bgImageType = bgImageType;
             }
+
+            if (text) settings.text = text;
 
             if (isPhoto) {
                 if (photoImageId) {
                     settings.imageType = photoImageType;
                     settings.imagePayload = photoImageId;
                 }
+            }
+
+            if (isProfile) {
+                settings.avatarType = profileAvatarType;
+                settings.avatarPayload = profileAvatarId || "https://placehold.co/150x150/png";
+                settings.titleText = profileTitle;
+                settings.statusText = profileStatus;
+                settings.bgColor = bgColor;
             }
 
             if (isAnniversary) {
@@ -342,7 +371,7 @@ const WidgetConfigModal = ({ isOpen, onClose, widgetType, config, onConfirm }) =
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 dark:border-white/10 flex justify-between items-center shrink-0">
                     <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
-                        {isAnniversary ? '配置纪念日' : '配置组件'}
+                        {isAnniversary ? '配置纪念日' : isSticky ? '配置便利贴' : '配置组件'}
                     </h3>
                     <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
                         <X size={20} className="text-gray-500" />
@@ -350,19 +379,97 @@ const WidgetConfigModal = ({ isOpen, onClose, widgetType, config, onConfirm }) =
                 </div>
 
                 <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
-                    {/* WEATHER CONFIG */}
-                    {isWeather && (
-                        <div className="space-y-3">
-                            <label className="text-sm font-medium text-gray-600 dark:text-gray-300">城市名称</label>
-                            <div className="relative">
-                                <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+
+                    {/* STICKY NOTE CONFIG */}
+                    {isSticky && (
+                        <div className="space-y-5">
+                            {/* Text Inputs */}
+                            <div className="space-y-3">
+                                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                                    <MessageCircle size={14} className="text-blue-500" /> 文字内容
+                                </label>
                                 <input
                                     type="text"
-                                    value={city || ''}
-                                    onChange={e => setCity(e.target.value)}
-                                    placeholder="例如: 上海, New York"
-                                    className="w-full bg-gray-100 dark:bg-black/20 rounded-xl py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white select-text"
+                                    value={stickyTopText}
+                                    onChange={e => setStickyTopText(e.target.value)}
+                                    placeholder="第一层：置顶事项"
+                                    className="w-full bg-gray-100 dark:bg-black/20 rounded-xl py-2 px-3 text-sm outline-none text-center"
                                 />
+                                <input
+                                    type="text"
+                                    value={stickyMiddleText}
+                                    onChange={e => setStickyMiddleText(e.target.value)}
+                                    placeholder="第二层：代办内容"
+                                    className="w-full bg-gray-100 dark:bg-black/20 rounded-xl py-2 px-3 text-sm outline-none text-center"
+                                />
+                                <input
+                                    type="text"
+                                    value={stickyBottomText}
+                                    onChange={e => setStickyBottomText(e.target.value)}
+                                    placeholder="第三层：标签备注"
+                                    className="w-full bg-gray-100 dark:bg-black/20 rounded-xl py-2 px-3 text-sm outline-none text-center"
+                                />
+                            </div>
+
+                            <div className="w-full border-t border-gray-100 dark:border-white/10 my-2" />
+
+                            {/* Appearance */}
+                            <div className="space-y-4">
+                                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                                    <Palette size={14} className="text-purple-500" /> 外观设置
+                                </label>
+
+                                {/* Bg Color */}
+                                <div className="space-y-1">
+                                    <span className="text-xs text-gray-400 pl-1">背景颜色</span>
+                                    <SimplifiedColorPicker value={bgColor} onChange={setBgColor} />
+                                </div>
+
+                                {/* Opacity Slider */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-xs text-gray-500 px-1">
+                                        <span>背景透明度</span>
+                                        <span>{stickyBgOpacity}%</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        value={stickyBgOpacity}
+                                        onChange={e => setStickyBgOpacity(e.target.value)}
+                                        className="w-full h-1.5 bg-gray-200 dark:bg-white/20 rounded-full appearance-none cursor-pointer accent-blue-500"
+                                    />
+                                </div>
+
+                                {/* Pin Color */}
+                                <div className="space-y-1 pt-2">
+                                    <span className="text-xs text-gray-400 pl-1">图钉颜色</span>
+                                    <div className="flex gap-2">
+                                        {['#ff6b6b', '#4dabf7', '#51cf66', '#fcc419', '#868e96'].map(c => (
+                                            <button
+                                                key={c}
+                                                onClick={() => setStickyPinColor(c)}
+                                                className={`w-6 h-6 rounded-full border-2 ${stickyPinColor === c ? 'border-gray-400 dark:border-white' : 'border-transparent'}`}
+                                                style={{ backgroundColor: c }}
+                                            />
+                                        ))}
+                                        <div className="relative w-6 h-6 rounded-full overflow-hidden border border-gray-200">
+                                            <input type="color" className="absolute inset-0 opacity-0 w-full h-full p-0 cursor-pointer" value={stickyPinColor} onChange={e => setStickyPinColor(e.target.value)} />
+                                            <div className="w-full h-full" style={{ backgroundColor: stickyPinColor }} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Bg Image */}
+                                <div className="space-y-1 pt-2">
+                                    <span className="text-xs text-gray-400 pl-1">背景图片 (可选)</span>
+                                    <BackgroundImagePicker
+                                        value={bgImageId}
+                                        valueType={bgImageType}
+                                        onImageChange={setBgImageId}
+                                        onTypeChange={setBgImageType}
+                                    />
+                                </div>
                             </div>
                         </div>
                     )}
@@ -376,19 +483,51 @@ const WidgetConfigModal = ({ isOpen, onClose, widgetType, config, onConfirm }) =
                                 onImageChange={setPhotoImageId}
                                 onTypeChange={setPhotoImageType}
                             />
-                            {widgetType.includes('polaroid') && (
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-600 dark:text-gray-300">底部文字</label>
+                        </div>
+                    )}
+
+                    {/* PROFILE CONFIG */}
+                    {isProfile && (
+                        <div className="space-y-6">
+                            <div className="flex justify-center bg-gray-50 dark:bg-white/5 rounded-2xl p-4">
+                                <MiniImagePicker
+                                    label="主页头像"
+                                    value={profileAvatarId}
+                                    valueType={profileAvatarType}
+                                    onImageChange={setProfileAvatarId}
+                                    onTypeChange={setProfileAvatarType}
+                                />
+                            </div>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-xs font-medium text-gray-500 mb-1.5 block">标题文字</label>
                                     <input
                                         type="text"
-                                        value={text || ''}
-                                        onChange={e => setText(e.target.value)}
-                                        placeholder="写下此刻的心情..."
-                                        maxLength={20}
-                                        className="w-full bg-gray-100 dark:bg-black/20 rounded-xl py-2 px-4 outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-handwriting select-text"
+                                        value={profileTitle}
+                                        onChange={e => setProfileTitle(e.target.value)}
+                                        className="w-full bg-gray-100 dark:bg-black/20 rounded-xl py-2 px-3 text-sm outline-none text-center"
+                                        placeholder="默认: sun: 📷/"
                                     />
                                 </div>
-                            )}
+                                <div>
+                                    <label className="text-xs font-medium text-gray-500 mb-1.5 block">状态气泡</label>
+                                    <input
+                                        type="text"
+                                        value={profileStatus}
+                                        onChange={e => setProfileStatus(e.target.value)}
+                                        className="w-full bg-gray-100 dark:bg-black/20 rounded-xl py-2 px-3 text-sm outline-none text-center"
+                                        placeholder="默认: #15° Starry - eyed"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-white/10">
+                                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2 mb-2">
+                                    <Palette size={14} className="text-purple-500" /> 背景颜色
+                                </label>
+                                <SimplifiedColorPicker value={bgColor} onChange={setBgColor} />
+                            </div>
                         </div>
                     )}
 
@@ -501,8 +640,8 @@ const WidgetConfigModal = ({ isOpen, onClose, widgetType, config, onConfirm }) =
                         {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '确认添加'}
                     </button>
                 </div>
-            </motion.div>
-        </div>
+            </motion.div >
+        </div >
     );
 };
 

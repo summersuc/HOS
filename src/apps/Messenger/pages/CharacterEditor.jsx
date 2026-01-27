@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Save, X, Trash2, ChevronRight, Image as ImageIcon, Link, User, Globe, Sparkles, MessageCircle, Heart, FileText, Book } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
@@ -40,6 +40,8 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
     });
 
     const [avatarPreview, setAvatarPreview] = useState(null);
+    const fileInputRef = useRef(null);
+    const urlInputRef = useRef(null);
 
     // Initial Load
     useEffect(() => {
@@ -202,43 +204,30 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
                             <div
                                 onClick={() => {
                                     triggerHaptic();
-                                    // Hidden File Input Trigger via button Logic below, or direct click
-                                    // For consistency, we use the visual buttons below for specific actions, 
-                                    // or click main area to toggle? 
-                                    // Let's stick to the visual buttons below being the main "explicit" controls,
-                                    // but clicking the avatar Image itself often expects "View" or "Change".
+                                    fileInputRef.current?.click();
                                 }}
-                                className="w-[76px] h-[76px] rounded-full bg-gray-100 dark:bg-[#2C2C2E] overflow-hidden border-4 border-white dark:border-[#2C2C2E] shadow-lg flex items-center justify-center cursor-pointer relative"
+                                className="w-[84px] h-[84px] rounded-full bg-gray-100 dark:bg-[#2C2C2E] overflow-hidden border-4 border-white dark:border-[#2C2C2E] shadow-lg flex items-center justify-center cursor-pointer relative active:scale-95 transition-transform"
                             >
                                 {avatarPreview ? (
                                     <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
                                 ) : (
-                                    <User size={32} className="text-gray-300" />
+                                    <User size={36} className="text-gray-300" />
                                 )}
                             </div>
 
-                            {/* Option Buttons (Floating below) */}
-                            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-                                <button
-                                    onClick={() => handleChange('avatarType', 'local')}
-                                    className={`w-6 h-6 rounded-full flex items-center justify-center shadow-md border border-white dark:border-black transition-all ${form.avatarType === 'local' ? 'bg-gray-500 text-white scale-110' : 'bg-white dark:bg-[#3A3A3C] text-gray-400'}`}
-                                >
-                                    <ImageIcon size={12} strokeWidth={2.5} />
-                                    {form.avatarType === 'local' && (
-                                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleImageUpload} />
-                                    )}
-                                </button>
-                                <button
-                                    onClick={() => handleChange('avatarType', 'url')}
-                                    className={`w-6 h-6 rounded-full flex items-center justify-center shadow-md border border-white dark:border-black transition-all ${form.avatarType === 'url' ? 'bg-gray-500 text-white scale-110' : 'bg-white dark:bg-[#3A3A3C] text-gray-400'}`}
-                                >
-                                    <Link size={12} strokeWidth={2.5} />
-                                </button>
-                            </div>
+                            {/* Hidden File Input */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                            />
                         </div>
 
                         <div className="flex-1 space-y-3 min-w-0 pt-2">
                             <div className="relative">
+                                {/* Avatar Source Selection Removed as per user feedback */}
                                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">联系人姓名</label>
                                 <input
                                     type="text"
@@ -248,19 +237,35 @@ const CharacterEditor = ({ characterId, onBack, onStartChat }) => {
                                     className="w-full text-[22px] font-bold bg-transparent placeholder-gray-300 dark:text-white focus:outline-none"
                                 />
                             </div>
-
-                            {form.avatarType === 'url' && (
-                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <input
-                                        type="text"
-                                        value={form.avatar}
-                                        onChange={e => handleChange('avatar', e.target.value)}
-                                        placeholder="粘贴图片链接..."
-                                        className="w-full text-[14px] bg-gray-50 dark:bg-[#2C2C2E] rounded-xl px-3 py-2 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 border border-transparent transition-all"
-                                    />
-                                </div>
-                            )}
                         </div>
+                    </div>
+
+                    {/* New URL Input Row - "往下挪一点" */}
+                    <div className="mt-6 flex items-center gap-2 scale-95 origin-left">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-[#3A3A3C] shadow-sm flex items-center justify-center shrink-0 border border-gray-200 dark:border-white/5 text-gray-500 dark:text-gray-400">
+                            <Link size={14} strokeWidth={2.5} />
+                        </div>
+                        <input
+                            ref={urlInputRef}
+                            type="text"
+                            value={form.avatarType === 'url' ? form.avatar : ''}
+                            onChange={e => {
+                                handleChange('avatarType', 'url');
+                                handleChange('avatar', e.target.value);
+                            }}
+                            placeholder="粘贴图片链接..."
+                            className="flex-1 text-[13px] bg-gray-50 dark:bg-[#2C2C2E] rounded-xl px-3 py-2 text-gray-800 dark:text-gray-200 focus:outline-none border border-gray-200 dark:border-white/5 transition-all"
+                        />
+                        <button
+                            onClick={() => {
+                                triggerHaptic();
+                                handleChange('avatarType', 'url');
+                                alert('链接已应用！');
+                            }}
+                            className="px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-black text-[12px] font-bold rounded-xl active:scale-95 transition-transform shrink-0"
+                        >
+                            确定
+                        </button>
                     </div>
                 </div>
 

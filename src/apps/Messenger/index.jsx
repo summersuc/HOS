@@ -87,14 +87,14 @@ const Messenger = ({ onClose, initialParams }) => {
             }
         };
 
-        window.addEventListener('hos-app-share', handleShare);
+        window.addEventListener('suki-app-share', handleShare);
 
         // Check for initial params (Launch from another app)
         if (initialParams && initialParams.action === 'share-music') {
             handleShare({ detail: { ...initialParams, targetApp: 'messenger' } });
         }
 
-        return () => window.removeEventListener('hos-app-share', handleShare);
+        return () => window.removeEventListener('suki-app-share', handleShare);
     }, [initialParams]);
 
     const openPage = (page, pushToStack = true) => {

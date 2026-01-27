@@ -56,7 +56,7 @@ function App() {
   useEffect(() => {
     const loadFallback = () => {
       try {
-        const stored = localStorage.getItem('hos_wallpaper_fallback');
+        const stored = localStorage.getItem('suki_wallpaper_fallback');
         if (stored) setFallbackWallpaper(stored);
       } catch (e) { }
     };
@@ -74,7 +74,7 @@ function App() {
     const updateTheme = () => {
       try {
         // 核心改动：不再依赖同步的数据库读取，优先读最稳的 localStorage
-        const localTheme = localStorage.getItem('hos_theme_mode');
+        const localTheme = localStorage.getItem('suki_theme_mode');
         const dbTheme = themeModeDB?.value;
         const currentMode = localTheme || dbTheme || 'light';
 

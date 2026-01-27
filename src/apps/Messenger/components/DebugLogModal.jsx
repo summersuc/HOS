@@ -1,12 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Copy, ArrowDown, ArrowUp } from 'lucide-react';
 
 const DebugLogModal = ({ isOpen, onClose, request, response }) => {
-    return (
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+        return () => setMounted(false);
+    }, []);
+
+    if (!mounted) return null;
+
+    return createPortal(
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -40,8 +50,11 @@ const DebugLogModal = ({ isOpen, onClose, request, response }) => {
                                         <ArrowUp size={14} className="text-blue-500" />
                                         <span className="text-xs font-bold text-gray-500 uppercase">Request (Context)</span>
                                     </div>
-                                    <button onClick={() => navigator.clipboard.writeText(request)} className="text-gray-400 hover:text-blue-500 transition-colors">
-                                        <Copy size={14} />
+                                    <button
+                                        onClick={() => { navigator.clipboard.writeText(request); alert('已复制 Request！'); }}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 active:bg-blue-500/10 transition-all"
+                                    >
+                                        <Copy size={16} />
                                     </button>
                                 </div>
                                 <div className="flex-1 overflow-auto p-3 bg-gray-50/50 dark:bg-black/10">
@@ -58,8 +71,11 @@ const DebugLogModal = ({ isOpen, onClose, request, response }) => {
                                         <ArrowDown size={14} className="text-green-500" />
                                         <span className="text-xs font-bold text-gray-500 uppercase">Response (Stream)</span>
                                     </div>
-                                    <button onClick={() => navigator.clipboard.writeText(response)} className="text-gray-400 hover:text-green-500 transition-colors">
-                                        <Copy size={14} />
+                                    <button
+                                        onClick={() => { navigator.clipboard.writeText(response); alert('已复制 Response！'); }}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 active:bg-green-500/10 transition-all"
+                                    >
+                                        <Copy size={16} />
                                     </button>
                                 </div>
                                 <div className="flex-1 overflow-auto p-3 bg-gray-50/50 dark:bg-black/10">
@@ -72,7 +88,8 @@ const DebugLogModal = ({ isOpen, onClose, request, response }) => {
                     </motion.div>
                 </div>
             )}
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 };
 

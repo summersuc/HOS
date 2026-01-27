@@ -10,6 +10,7 @@ import Messenger from '../../apps/Messenger';
 import Calendar from '../../apps/Calendar';
 import Music from '../../apps/Music';
 import SmallWorld from '../../apps/SmallWorld';
+import Heartbeat from '../../apps/Heartbeat';
 
 // 组件映射表
 const APP_COMPONENTS = {
@@ -18,6 +19,7 @@ const APP_COMPONENTS = {
     calendar: Calendar,
     music: Music,
     world: SmallWorld,
+    heartbeat: Heartbeat,
     // 其他 App 暂时未实现，后续添加
 };
 

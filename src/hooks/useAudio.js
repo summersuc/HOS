@@ -66,11 +66,55 @@ const broadcastState = () => {
     saveState();
 };
 
+// Helper for Fisher-Yates shuffle
+const shuffleArray = (array) => {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+};
+
+// Auto-next function (Now global)
+const autoPlayNext = async () => {
+    if (globalState.queue.length === 0) return;
+
+    let nextIndex = globalState.currentIndex + 1;
+    if (nextIndex >= globalState.queue.length) {
+        if (globalState.mode === 'sequence') {
+            globalState.isPlaying = false;
+            broadcastState();
+            return;
+        }
+        nextIndex = 0; // Wrap around for loop/shuffle
+    }
+
+    const nextTrack = globalState.queue[nextIndex];
+    if (nextTrack) {
+        try {
+            const res = await MusicService.getSongUrl(nextTrack.id);
+            if (res?.data?.[0]?.url) {
+                // We handle playTrack logic manually here or call it if available
+                // To keep it simple, we use the global audio directly for auto-next
+                globalState.currentIndex = nextIndex;
+                globalState.currentTrack = nextTrack;
+                globalAudio.src = res.data[0].url;
+                await globalAudio.play();
+                globalState.isPlaying = true;
+                broadcastState();
+            }
+        } catch (e) {
+            console.error("Auto-play next failed", e);
+        }
+    }
+};
+
 // Bind Events to Global Audio Once
 if (!isGlobalListenerAttached) {
     globalAudio.addEventListener('timeupdate', () => {
         globalState.progress = globalAudio.currentTime;
-        broadcastState(); // layout thrashing? throttle this if performance issues arise
+        broadcastState();
     });
     globalAudio.addEventListener('loadedmetadata', () => {
         globalState.duration = globalAudio.duration;
@@ -81,10 +125,7 @@ if (!isGlobalListenerAttached) {
             globalAudio.currentTime = 0;
             globalAudio.play();
         } else {
-            // Auto-next logic handled by hook or service exposed method?
-            // Since we can't call hook functions here easily, we rely on the component to detect 'ended' or we build a mini-service.
-            // Simplified: Dispatch an event the hook captures.
-            globalAudio.dispatchEvent(new CustomEvent('audio-ended'));
+            autoPlayNext(); // Directly call the global function
         }
         broadcastState();
     });
@@ -93,7 +134,6 @@ if (!isGlobalListenerAttached) {
         broadcastState();
     });
     globalAudio.addEventListener('pause', () => {
-        // Only set false if we really meant to pause (sometimes src change triggers pause)
         globalState.isPlaying = false;
         broadcastState();
     });
@@ -109,7 +149,8 @@ export const useAudio = () => {
         const nextMode = modes[(modes.indexOf(globalState.mode) + 1) % modes.length];
 
         if (nextMode === 'shuffle') {
-            const newQueue = [...globalState.playlist].sort(() => Math.random() - 0.5);
+            // Use real shuffle
+            const newQueue = shuffleArray(globalState.playlist);
             if (globalState.currentTrack) {
                 const idx = newQueue.findIndex(t => t.id === globalState.currentTrack.id);
                 if (idx > -1) {
@@ -134,33 +175,8 @@ export const useAudio = () => {
         // Initial sync
         setState({ ...globalState });
 
-        const handleEnded = async () => {
-            // Logic to play next automatically
-            if (globalState.queue.length === 0) return;
-            let nextIndex = globalState.currentIndex + 1;
-            if (nextIndex >= globalState.queue.length) {
-                // Determine loop mode
-                if (globalState.mode === 'sequence') return; // Stop at end
-                nextIndex = 0;
-            }
-            const nextTrack = globalState.queue[nextIndex];
-            if (nextTrack) {
-                // Auto-fetch and play
-                try {
-                    const res = await MusicService.getSongUrl(nextTrack.id);
-                    if (res?.data?.[0]?.url) {
-                        playTrack(nextTrack, res.data[0].url);
-                    }
-                } catch (e) {
-                    console.error("Auto-play next failed", e);
-                }
-            }
-        };
-        globalAudio.addEventListener('audio-ended', handleEnded);
-
         return () => {
             listeners.delete(setState);
-            globalAudio.removeEventListener('audio-ended', handleEnded);
         };
     }, []);
 
@@ -170,7 +186,7 @@ export const useAudio = () => {
         if (list.length > 0) {
             globalState.playlist = list;
             if (globalState.mode === 'shuffle') {
-                const newQueue = [...list].sort(() => Math.random() - 0.5);
+                const newQueue = shuffleArray(list);
                 const idx = newQueue.findIndex(t => t.id === track.id);
                 if (idx > -1) newQueue.splice(idx, 1);
                 newQueue.unshift(track);

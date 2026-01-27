@@ -22,11 +22,8 @@ const DiscoverTab = ({ onOpenWorldBook }) => {
             {/* Header - V3 Soft Gradient Blur */}
             <div className="shrink-0 relative z-30">
                 <div
-                    className="absolute top-0 left-0 right-0 h-32 pointer-events-none"
+                    className="absolute top-0 left-0 right-0 h-32 pointer-events-none bg-gradient-to-b from-[#F2F2F7]/95 to-transparent dark:from-black/90 dark:to-transparent backdrop-blur-xl"
                     style={{
-                        background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
-                        backdropFilter: 'blur(20px)',
-                        WebkitBackdropFilter: 'blur(20px)',
                         maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
                         WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
                     }}

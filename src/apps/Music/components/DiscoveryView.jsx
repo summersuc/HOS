@@ -27,23 +27,30 @@ const DiscoveryView = memo(({ userId, onSelectPlaylist, onPlaySong, onOpenSearch
     const loadRecommendations = async () => {
         // 1. Try Load from Cache
         let cached = null;
+        let shouldUseNetwork = true;
+
         try {
             const raw = localStorage.getItem(CACHE_KEY);
             if (raw) {
                 cached = JSON.parse(raw);
+
+                // OPTIMIZATION: Always use cache first for instant load (Stale-while-revalidate)
+                setBanners(cached.banners || []);
+                setToplists(cached.toplists || []);
+                setRecmdPlaylists(cached.recmdPlaylists || []);
+                setAllRecmdPlaylists(cached.allRecmdPlaylists || []);
+                setTodaySongs(cached.todaySongs || []);
+                setPrivateFM(cached.privateFM || []);
+                setLikedSongs(cached.likedSongs || []);
+
+                // Hide loaders immediately if we have cache
+                setLoading(false);
+                if (setGlobalLoading) setGlobalLoading(false);
+
+                // Check Expiry to decide if we need background refresh
                 if (Date.now() - cached.timestamp < CACHE_EXPIRY) {
-                    // Valid cache - use it immediately
-                    setBanners(cached.banners || []);
-                    setToplists(cached.toplists || []);
-                    setRecmdPlaylists(cached.recmdPlaylists || []);
-                    setAllRecmdPlaylists(cached.allRecmdPlaylists || []);
-                    setTodaySongs(cached.todaySongs || []);
-                    setPrivateFM(cached.privateFM || []);
-                    setLikedSongs(cached.likedSongs || []);
-                    setLoading(false);
-                    if (setGlobalLoading) setGlobalLoading(false);
-                } else {
-                    cached = null; // Expired
+                    // Cache is fresh ( < 1 hour), skip network
+                    shouldUseNetwork = false;
                 }
             }
         } catch (e) {
@@ -51,6 +58,8 @@ const DiscoveryView = memo(({ userId, onSelectPlaylist, onPlaySong, onOpenSearch
         }
 
         if (!cached) setLoading(true);
+
+        if (!shouldUseNetwork) return; // Skip network if cache is fresh
 
         // 2. Fetch Fresh Data (Stale-while-revalidate)
         try {

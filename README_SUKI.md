@@ -1,4 +1,4 @@
-# HOS (星野小手机) Project Documentation
+# suki (suki) Project Documentation
 
 > 运行在 iOS 上的沉浸式 PWA Web 应用。
 

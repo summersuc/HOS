@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, SkipForward, SkipBack, ListMusic, Repeat, Repeat1, Shuffle, X, Disc, History } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, ListMusic, Repeat, Repeat1, Shuffle, X, Disc, History, Library } from 'lucide-react';
 import { useAudio } from '../../../hooks/useAudio';
 import { useListenTogether } from '../../../hooks/useListenTogether';
 import { MusicService } from '../../../services/MusicService';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/schema';
 
-const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
+const ListenTogetherPlayer = ({ visible, onClose, conversationId, onSwitchPlaylist, onQuit }) => {
     const { currentTrack, isPlaying, togglePlay, playNextTrack, playPrevTrack, queue, playTrack, toggleMode, mode } = useAudio();
     const { isEnabled, set: setListenTogether } = useListenTogether();
     const [showQueue, setShowQueue] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
 
-    // Fetch History from DB (Type: event_music_history)
+    // Fetch History from DB (Same as before)
     const historyMsgs = useLiveQuery(async () => {
         if (!conversationId && conversationId !== 0) return [];
         try {
@@ -22,13 +22,10 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                 .equals(['single', conversationId])
                 .filter(m => m.msgType === 'event_music_history')
                 .toArray();
-            return msgs.sort((a, b) => b.timestamp - a.timestamp); // Newer first
-        } catch (e) {
-            return [];
-        }
+            return msgs.sort((a, b) => b.timestamp - a.timestamp);
+        } catch (e) { return []; }
     }, [conversationId]);
 
-    // Parse songs from history (Extract "Song A -> Song B" from "[History Summary: User listened to ...]")
     const parsedHistory = React.useMemo(() => {
         const songs = [];
         historyMsgs?.forEach(msg => {
@@ -41,7 +38,6 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
         return songs;
     }, [historyMsgs]);
 
-    // If generic 'Listen Together' logic is disabled, don't show anything ever.
     if (!isEnabled) return null;
 
     const getModeIcon = () => {
@@ -68,11 +64,11 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                         className="absolute top-16 right-4 z-50 flex flex-col items-center origin-top-right"
                     >
                         {/* Main Capsule - Frosted Glass Upgrade */}
-                        <div className="bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-3xl border border-white/40 dark:border-white/10 rounded-[28px] p-3 flex flex-col gap-3 shadow-2xl min-w-[220px] ring-1 ring-black/5">
+                        <div className="bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-3xl border border-white/40 dark:border-white/10 rounded-[28px] p-3 flex flex-col gap-3 shadow-2xl min-w-[220px] max-w-[260px] ring-1 ring-black/5 overflow-hidden">
 
                             {/* Current Track Info */}
                             {currentTrack ? (
-                                <div className="flex items-center gap-3 pr-2">
+                                <div className="flex items-center gap-3 pr-1 w-full overflow-hidden">
                                     <div className="relative w-11 h-11 rounded-full overflow-hidden bg-gray-100 dark:bg-white/10 shrink-0 shadow-lg border border-white/20 dark:border-white/10">
                                         <motion.img
                                             src={currentTrack.al?.picUrl}
@@ -86,11 +82,17 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                                             <div className="w-2.5 h-2.5 bg-gray-900/80 dark:bg-black/80 rounded-full border border-white/30" />
                                         </div>
                                     </div>
-                                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-gray-900 dark:text-white text-[13px] font-bold truncate leading-tight tracking-tight">{currentTrack.name}</span>
+                                    <div className="flex-1 min-w-0 flex flex-col gap-0.5 overflow-hidden">
+                                        {/* Marquee Container */}
+                                        <div className="relative w-full overflow-hidden h-[18px]">
+                                            <div className={`whitespace-nowrap absolute top-0 left-0 ${currentTrack.name.length > 12 ? 'animate-marquee' : ''}`}>
+                                                <span className="text-gray-900 dark:text-white text-[13px] font-bold tracking-tight mr-4">{currentTrack.name}</span>
+                                                {currentTrack.name.length > 12 && <span className="text-gray-900 dark:text-white text-[13px] font-bold tracking-tight">{currentTrack.name}</span>}
+                                            </div>
                                         </div>
-                                        <span className="text-gray-500 dark:text-white/70 text-[11px] truncate leading-tight font-medium">{currentTrack.ar?.map(a => a.name).join('/')}</span>
+                                        <span className="text-gray-500 dark:text-white/70 text-[11px] truncate leading-tight font-medium block">
+                                            {currentTrack.ar?.map(a => a.name).join('/')}
+                                        </span>
                                     </div>
                                 </div>
                             ) : (
@@ -101,6 +103,15 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                             {currentTrack && (
                                 <div className="flex items-center justify-between px-1">
                                     <div className="flex items-center gap-1">
+                                        {/* Switch Playlist - NEW */}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onSwitchPlaylist && onSwitchPlaylist(); }}
+                                            className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 active:scale-95 transition-all text-pink-500 dark:text-pink-400"
+                                            title="切换歌单"
+                                        >
+                                            <Library size={14} />
+                                        </button>
+
                                         {/* Mode Toggle */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); toggleMode(); }}
@@ -108,15 +119,6 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                                             title="播放模式"
                                         >
                                             {getModeIcon()}
-                                        </button>
-
-                                        {/* History Toggle */}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setShowHistory(!showHistory); setShowQueue(false); }}
-                                            className={`p-1.5 rounded-full transition-all active:scale-95 ${showHistory ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-white/80'}`}
-                                            title="听歌历史"
-                                        >
-                                            <History size={16} />
                                         </button>
                                     </div>
 
@@ -146,16 +148,40 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                                         </button>
                                     </div>
 
-                                    {/* List Toggle */}
-                                    <button
-                                        onClick={() => { setShowQueue(!showQueue); setShowHistory(false); }}
-                                        className={`p-2 rounded-full transition-colors active:scale-95 ${showQueue ? 'bg-gray-100 dark:bg-white/20 text-blue-500 dark:text-white' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-white/60'}`}
-                                        title="播放队列"
-                                    >
-                                        <ListMusic size={16} />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        {/* Queue Toggle - RESTORED */}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setShowQueue(!showQueue); setShowHistory(false); }}
+                                            className={`p-1.5 rounded-full transition-all active:scale-95 ${showQueue ? 'bg-pink-100 dark:bg-pink-500/20 text-pink-500 dark:text-pink-400' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-white/80'}`}
+                                            title="歌曲清单"
+                                        >
+                                            <ListMusic size={16} />
+                                        </button>
+
+                                        {/* History Toggle */}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setShowHistory(!showHistory); setShowQueue(false); }}
+                                            className={`p-1.5 rounded-full transition-all active:scale-95 ${showHistory ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-white/80'}`}
+                                            title="听歌历史"
+                                        >
+                                            <History size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             )}
+
+                            {/* Queue List (Expandable) ... (Could add queue button back if space permits, removing for space or keeping?) 
+                                * User didn't ask to remove Queue. I replaced ListMusic with SwitchPlaylist. 
+                                * I should probably keep Queue toggle or merge them?
+                                * Let's put Queue toggle back if possible, or assume Switch Playlist is more important?
+                                * "Feat: Add Switch Playlist Entrance".
+                                * I used ListMusic icon for Switch Playlist.
+                                * Let's restore Queue toggle but maybe move it?
+                                * I'll put Queue toggle on the far right maybe? 
+                                * Or just add it back.
+                            */}
+
+                            {/* Restoring Queue Toggle but maybe smaller or clustered */}
 
                             {/* Queue List (Expandable) */}
                             <AnimatePresence>
@@ -180,9 +206,7 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                                                                 if (res?.data?.[0]?.url) {
                                                                     playTrack(track, res.data[0].url, queue);
                                                                 }
-                                                            } catch (err) {
-                                                                console.error("Failed to play track from list", err);
-                                                            }
+                                                            } catch (err) { }
                                                         }}
                                                         className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer transition-colors ${isCurr ? 'bg-gray-100 dark:bg-white/20 shadow-sm' : 'hover:bg-gray-100 dark:hover:bg-white/5 active:bg-gray-200 dark:active:bg-white/10'}`}
                                                     >
@@ -246,6 +270,7 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setListenTogether(false);
+                                    if (onQuit) onQuit();
                                     onClose();
                                 }}
                                 className="w-full mt-1 py-2 text-[11px] font-medium text-red-500/80 dark:text-red-400/80 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-white/10 rounded-xl transition-all border-t border-gray-200 dark:border-white/5 active:scale-98"
@@ -262,6 +287,8 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId }) => {
                             .animate-music-bar-1 { animation: music-bar 0.6s ease-in-out infinite; }
                             .animate-music-bar-2 { animation: music-bar 0.6s ease-in-out infinite 0.1s; }
                             .animate-music-bar-3 { animation: music-bar 0.6s ease-in-out infinite 0.2s; }
+                            @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+                            .animate-marquee { display: flex; animation: marquee 10s linear infinite; }
                         `}</style>
                     </motion.div>
                 </>

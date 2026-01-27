@@ -6,7 +6,7 @@ import { motion, useAnimation, useMotionValue, useTransform, useDragControls } f
  * - Handles Slide In/Out animations (Optimized)
  * - Implements "Swipe to Go Back" gesture
  */
-const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = true, showBackButton = true, backIcon }) => {
+const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = true, showBackButton = true, backIcon, className }) => {
     // Shared motion value for drag x position
     const x = useMotionValue(0);
     const controls = useAnimation();
@@ -80,8 +80,6 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
     // 3. onDragEnd -> if back, simple onBack() (parent unmounts).
     //    BUT we want to animate the slide OUT before unmounting?
     //    If parent unmounts, `AnimatePresence` triggers `exit`.
-    //    So we don't need to manually animate to 100% *before* calling onBack, unless we want to ensure visual completion first.
-    //    Actually, if we call onBack(), state changes, `IOSPage` gets removed. `AnimatePresence` sees it removed, triggers `exit` variant.
     //    So we DON'T need `controls.start` for the back action!
     //    We just need to release the drag.
     //    BUT `drag` leaves the element at the offset using `style={{x}}`.
@@ -94,7 +92,7 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
             animate="animate"
             exit="exit"
             transition={transition}
-            className="absolute inset-0 z-20 flex flex-col bg-[#F2F4F6] dark:bg-black shadow-2xl"
+            className={`absolute inset-0 z-20 flex flex-col shadow-2xl ${className || 'bg-[#F2F4F6] dark:bg-black'}`}
             style={{ x, willChange: "transform" }} // Hardware Acceleration
             // Drag Logic
             drag="x"
@@ -116,11 +114,8 @@ const IOSPage = ({ children, title, onBack, rightButton, enableEnterAnimation = 
                 <div className="absolute top-0 left-0 right-0 z-30">
                     {/* Background Layer */}
                     <div
-                        className="absolute top-0 left-0 right-0 h-28 pointer-events-none"
+                        className="absolute top-0 left-0 right-0 h-28 pointer-events-none bg-gradient-to-b from-[#F2F4F6]/95 to-transparent dark:from-black/90 dark:to-transparent backdrop-blur-xl"
                         style={{
-                            background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
-                            backdropFilter: 'blur(20px)',
-                            WebkitBackdropFilter: 'blur(20px)',
                             maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
                             WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)'
                         }}

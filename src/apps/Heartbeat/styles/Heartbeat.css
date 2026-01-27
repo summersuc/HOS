@@ -1,0 +1,1277 @@
+/* ==============================================
+   心动 App - 沉浸式角色扮演恋爱应用
+   主题色: 心动粉 #FF6B8A / 暖橙 #FF8C69 / 玫瑰金 #E8A0A0
+============================================== */
+
+/* ========== CSS Variables ========== */
+:root {
+    --hb-primary: #FF6B8A;
+    --hb-primary-light: #FFE4EA;
+    --hb-primary-dark: #E85A78;
+    --hb-secondary: #FF8C69;
+    --hb-accent: #E8A0A0;
+    --hb-bg: #FFF9FA;
+    --hb-card-bg: #FFFFFF;
+    --hb-text: #333333;
+    --hb-text-secondary: #888888;
+    --hb-border: rgba(0, 0, 0, 0.08);
+    --hb-shadow: 0 4px 16px rgba(255, 107, 138, 0.15);
+    --hb-radius: 16px;
+    --hb-radius-sm: 8px;
+}
+
+/* ========== Base Styles ========== */
+.heartbeat-app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--hb-bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--hb-text);
+}
+
+/* ========== Full Screen Main Background ========== */
+.hb-main-bg {
+    /* 淡粉色全屏背景 */
+    background: linear-gradient(180deg, #FFF0F5 0%, #FFE4E1 100%) !important;
+}
+
+/* ========== Full Screen Lover List ========== */
+.hb-fullscreen-list {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    /* 移除这一行，由父级 IOSPage 处理背景 */
+    /* background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%); */
+
+    /* 预留 iOS 原生状态栏空间 + 顶部边距 */
+    padding: 60px 20px 20px;
+    padding-top: calc(60px + env(safe-area-inset-top));
+
+    overflow-y: auto;
+}
+
+.hb-close-btn {
+    position: absolute;
+    top: 16px;
+    /* 适配状态栏位置 */
+    top: calc(16px + env(safe-area-inset-top));
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.05);
+    /* 浅色背景适配 */
+    border: none;
+    color: var(--hb-text-secondary);
+    /* 深色图标 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.hb-close-btn:active {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.hb-lovers-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* 主恋人大卡片 */
+.hb-main-lover-card {
+    grid-column: span 2;
+    position: relative;
+    height: 200px;
+    border-radius: 24px;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(255, 107, 138, 0.15);
+    /* 增加阴影 */
+    background: white;
+}
+
+.hb-main-lover-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hb-main-lover-bg.hb-no-avatar {
+    background: linear-gradient(135deg, var(--hb-primary-light), #FFF);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hb-avatar-initial {
+    font-size: 64px;
+    color: var(--hb-primary);
+    font-weight: 300;
+}
+
+.hb-main-lover-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(transparent 50%, rgba(255, 255, 255, 0.9));
+    /* 浅色遮罩 */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 20px;
+}
+
+.hb-main-lover-name {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--hb-text);
+    /* 深色文字 */
+    margin-bottom: 8px;
+}
+
+.hb-main-lover-intimacy {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--hb-text-secondary);
+    /* 深色文字 */
+    font-size: 14px;
+}
+
+.hb-main-lover-intimacy .hb-heart {
+    color: var(--hb-primary);
+}
+
+/* 小恋人卡片 */
+.hb-mini-lover-card {
+    height: 140px;
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.hb-mini-lover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hb-mini-lover-img.hb-no-avatar {
+    background: var(--hb-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: var(--hb-primary);
+}
+
+.hb-mini-lover-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px;
+    background: linear-gradient(transparent, rgba(255, 255, 255, 0.95));
+    /* 浅色渐变 */
+    color: var(--hb-text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* 添加卡片 */
+.hb-add-lover-card {
+    height: 140px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 2px dashed var(--hb-primary-light);
+    /* 粉色虚线 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--hb-primary);
+    /* 粉色图标 */
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.hb-add-lover-card:active {
+    background: var(--hb-primary-light);
+    border-color: var(--hb-primary);
+}
+
+/* ========== Editor New Styles ========== */
+.hb-avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background: var(--hb-card-bg);
+    border-radius: var(--hb-radius);
+    margin: 16px;
+}
+
+.hb-avatar-upload-area {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: #f5f5f5;
+    overflow: hidden;
+    cursor: pointer;
+    border: 4px solid white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hb-avatar-preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hb-avatar-empty {
+    color: #ccc;
+}
+
+.hb-url-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    width: 100%;
+    max-width: 280px;
+    color: #888;
+}
+
+.hb-url-input {
+    flex: 1;
+    border: 1px solid var(--hb-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    background: #f9f9f9;
+}
+
+.hb-form-card {
+    background: var(--hb-card-bg);
+    border-radius: var(--hb-radius);
+    margin: 16px;
+    padding: 16px;
+}
+
+.hb-textarea-large {
+    min-height: 120px;
+}
+
+.hb-import-avatar-empty {
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ccc;
+}
+
+/* ========== Header ========== */
+.hb-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, var(--hb-primary), var(--hb-secondary));
+    color: white;
+}
+
+.hb-header-title {
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hb-header-icon {
+    animation: hb-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes hb-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.15);
+    }
+}
+
+/* ========== Lover Card ========== */
+.hb-lover-card {
+    background: var(--hb-card-bg);
+    border-radius: var(--hb-radius);
+    box-shadow: var(--hb-shadow);
+    margin: 16px;
+    overflow: hidden;
+    transition: transform 0.2s ease;
+}
+
+.hb-lover-card:active {
+    transform: scale(0.98);
+}
+
+.hb-lover-card-main {
+    position: relative;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.hb-lover-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 3px solid var(--hb-primary);
+    object-fit: cover;
+    box-shadow: 0 4px 12px rgba(255, 107, 138, 0.3);
+}
+
+.hb-lover-info {
+    flex: 1;
+}
+
+.hb-lover-name {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.hb-lover-quote {
+    font-size: 14px;
+    color: var(--hb-text-secondary);
+    font-style: italic;
+    margin-bottom: 8px;
+}
+
+/* ========== Intimacy Bar ========== */
+.hb-intimacy-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hb-intimacy-icon {
+    color: var(--hb-primary);
+}
+
+.hb-intimacy-track {
+    flex: 1;
+    height: 6px;
+    background: var(--hb-primary-light);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.hb-intimacy-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--hb-primary), var(--hb-secondary));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.hb-intimacy-text {
+    font-size: 12px;
+    color: var(--hb-primary);
+    font-weight: 600;
+    min-width: 36px;
+    text-align: right;
+}
+
+/* ========== Lover Grid (Small Cards) ========== */
+.hb-lover-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 0 16px;
+}
+
+.hb-lover-mini-card {
+    background: var(--hb-card-bg);
+    border-radius: var(--hb-radius-sm);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.hb-lover-mini-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 2px solid var(--hb-accent);
+    object-fit: cover;
+}
+
+.hb-lover-mini-name {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ========== Add Button ========== */
+.hb-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 16px;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--hb-primary), var(--hb-secondary));
+    color: white;
+    border: none;
+    border-radius: var(--hb-radius);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--hb-shadow);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.hb-add-btn:active {
+    transform: scale(0.97);
+}
+
+/* ========== Story View (阅读模式) ========== */
+.hb-story-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: var(--hb-bg);
+}
+
+.hb-story-content {
+    line-height: 1.8;
+    font-size: 16px;
+}
+
+/* 动作描写样式 */
+.hb-action {
+    color: var(--hb-secondary);
+    font-style: italic;
+}
+
+/* 对话样式 */
+.hb-dialogue {
+    color: var(--hb-primary);
+    font-weight: 500;
+}
+
+/* 心理描写样式 */
+.hb-thought {
+    color: var(--hb-text-secondary);
+    font-size: 0.9em;
+}
+
+/* ========== Input Panel ========== */
+.hb-input-panel {
+    padding: 12px 16px;
+    background: var(--hb-card-bg);
+    border-top: 1px solid var(--hb-border);
+}
+
+.hb-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hb-input-field {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid var(--hb-border);
+    border-radius: 24px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.hb-input-field:focus {
+    border-color: var(--hb-primary);
+}
+
+.hb-send-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--hb-primary), var(--hb-secondary));
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.hb-send-btn:active {
+    transform: scale(0.9);
+}
+
+/* ========== Quick Actions ========== */
+.hb-quick-actions {
+    display: flex;
+    gap: 8px;
+    padding-top: 8px;
+}
+
+.hb-quick-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--hb-primary);
+    background: transparent;
+    color: var(--hb-primary);
+    border-radius: 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.hb-quick-btn:active {
+    background: var(--hb-primary);
+    color: white;
+}
+
+/* ========== Empty State ========== */
+.hb-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+}
+
+.hb-empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    animation: hb-pulse 2s ease-in-out infinite;
+}
+
+.hb-empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--hb-text);
+    margin-bottom: 8px;
+}
+
+.hb-empty-desc {
+    font-size: 14px;
+    color: var(--hb-text-secondary);
+}
+
+/* ========== Typing Indicator ========== */
+.hb-typing {
+    display: flex;
+    gap: 4px;
+    padding: 16px;
+    align-items: center;
+}
+
+.hb-typing-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--hb-primary);
+    border-radius: 50%;
+    animation: hb-typing 1.4s infinite;
+}
+
+.hb-typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.hb-typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes hb-typing {
+
+    0%,
+    60%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+
+    30% {
+        transform: translateY(-6px);
+        opacity: 1;
+    }
+}
+
+/* ========== Scene Badge ========== */
+.hb-scene-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: var(--hb-primary-light);
+    color: var(--hb-primary-dark);
+    border-radius: 12px;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+/* ========== Story Message Bubble ========== */
+.hb-message {
+    margin-bottom: 16px;
+    padding: 16px;
+    background: var(--hb-card-bg);
+    border-radius: var(--hb-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    animation: hb-fadeIn 0.3s ease;
+}
+
+@keyframes hb-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.hb-message-user {
+    background: linear-gradient(135deg, var(--hb-primary-light), #FFF);
+    border-left: 3px solid var(--hb-primary);
+}
+
+/* ========== Settings List ========== */
+.hb-settings-list {
+    padding: 16px;
+}
+
+.hb-settings-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--hb-border);
+}
+
+.hb-settings-label {
+    font-size: 15px;
+}
+
+.hb-settings-value {
+    color: var(--hb-text-secondary);
+    font-size: 14px;
+}
+
+/* ========== Editor Styles ========== */
+.hb-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.hb-editor-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.hb-back-btn,
+.hb-save-btn,
+.hb-settings-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hb-form-group {
+    margin-bottom: 20px;
+}
+
+.hb-form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--hb-text);
+    margin-bottom: 8px;
+}
+
+.hb-input,
+.hb-textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--hb-border);
+    border-radius: var(--hb-radius-sm);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+    background: var(--hb-card-bg);
+    box-sizing: border-box;
+}
+
+.hb-input:focus,
+.hb-textarea:focus {
+    border-color: var(--hb-primary);
+}
+
+.hb-textarea {
+    resize: none;
+    line-height: 1.6;
+}
+
+.hb-avatar-group {
+    display: flex;
+    justify-content: center;
+}
+
+.hb-avatar-upload {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 3px dashed var(--hb-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.2s;
+}
+
+.hb-avatar-upload:hover {
+    border-style: solid;
+    background: var(--hb-primary-light);
+}
+
+.hb-avatar-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hb-avatar-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--hb-primary);
+    font-size: 12px;
+}
+
+.hb-form-section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--hb-primary);
+    margin: 24px 0 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--hb-border);
+}
+
+.hb-scene-picker {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.hb-scene-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 8px;
+    border: 1px solid var(--hb-border);
+    border-radius: var(--hb-radius-sm);
+    background: var(--hb-card-bg);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.hb-scene-option:hover,
+.hb-scene-option.active {
+    border-color: var(--hb-primary);
+    background: var(--hb-primary-light);
+}
+
+.hb-scene-icon {
+    font-size: 20px;
+}
+
+.hb-scene-name {
+    font-size: 12px;
+    color: var(--hb-text-secondary);
+}
+
+.hb-scene-option.active .hb-scene-name {
+    color: var(--hb-primary);
+}
+
+.hb-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px;
+    margin-top: 32px;
+    background: transparent;
+    border: 1px solid #ff4d4f;
+    border-radius: var(--hb-radius);
+    color: #ff4d4f;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+/* ========== Import Section ========== */
+.hb-import-section {
+    margin-bottom: 20px;
+}
+
+.hb-import-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--hb-primary-light);
+    border: 1px solid var(--hb-primary);
+    border-radius: var(--hb-radius-sm);
+    color: var(--hb-primary);
+    font-size: 14px;
+    cursor: pointer;
+    width: 100%;
+    justify-content: center;
+}
+
+.hb-import-list {
+    margin-top: 12px;
+    border: 1px solid var(--hb-border);
+    border-radius: var(--hb-radius-sm);
+    overflow: hidden;
+}
+
+.hb-import-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-bottom: 1px solid var(--hb-border);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.hb-import-item:last-child {
+    border-bottom: none;
+}
+
+.hb-import-item:hover {
+    background: var(--hb-primary-light);
+}
+
+.hb-import-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* ========== Settings Page ========== */
+.hb-settings-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.hb-settings-select,
+.hb-settings-input {
+    padding: 8px 12px;
+    border: 1px solid var(--hb-border);
+    border-radius: var(--hb-radius-sm);
+    font-size: 14px;
+    background: var(--hb-card-bg);
+    outline: none;
+}
+
+.hb-settings-input {
+    width: 80px;
+    text-align: center;
+}
+
+/* Toggle Switch */
+.hb-toggle {
+    position: relative;
+    width: 48px;
+    height: 28px;
+}
+
+.hb-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.hb-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #ccc;
+    transition: 0.3s;
+    border-radius: 28px;
+}
+
+.hb-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.hb-toggle input:checked+.hb-toggle-slider {
+    background: var(--hb-primary);
+}
+
+.hb-toggle input:checked+.hb-toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* ========== Story Scene ========== */
+.hb-story-scene {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.hb-scene-picker-dropdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 16px 16px;
+    background: var(--hb-card-bg);
+    border-bottom: 1px solid var(--hb-border);
+}
+
+.hb-message-system {
+    background: var(--hb-primary-light);
+    border-left: 3px solid var(--hb-secondary);
+    font-style: italic;
+    color: var(--hb-text-secondary);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 375px) {
+    .hb-scene-picker {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* ========== Story Mode ========== */
+.hb-story-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ========== Bubble Mode ========== */
+.hb-bubble-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.hb-bubble-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    max-width: 85%;
+}
+
+.hb-bubble-row-user {
+    flex-direction: row-reverse;
+    align-self: flex-end;
+}
+
+.hb-bubble-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--hb-primary), var(--hb-secondary));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.hb-bubble-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hb-bubble-avatar span {
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.hb-bubble {
+    padding: 10px 14px;
+    border-radius: 18px;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+.hb-bubble-lover {
+    background: white;
+    border: 1px solid var(--hb-border);
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.hb-bubble-user {
+    background: linear-gradient(135deg, var(--hb-primary), var(--hb-secondary));
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.hb-bubble-content {
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.hb-bubble-content .hb-action {
+    color: var(--hb-secondary);
+    font-style: italic;
+}
+
+.hb-bubble-user .hb-bubble-content .hb-action {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.hb-bubble-system {
+    text-align: center;
+    padding: 8px 0;
+}
+
+.hb-bubble-system-text {
+    background: var(--hb-primary-light);
+    color: var(--hb-text-secondary);
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+.hb-bubble-typing {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 16px;
+}
+
+/* ========== Immersive Mode ========== */
+.hb-immersive-view {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+}
+
+.hb-immersive-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.hb-immersive-scene-icon {
+    font-size: 64px;
+    margin-bottom: 8px;
+    filter: blur(1px);
+}
+
+.hb-immersive-scene-name {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
+.hb-immersive-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 32px 24px;
+    z-index: 1;
+    overflow-y: auto;
+}
+
+.hb-immersive-text {
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 18px;
+    line-height: 2;
+    text-align: center;
+    max-width: 500px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.hb-immersive-text .hb-action {
+    color: var(--hb-secondary);
+    font-style: italic;
+}
+
+.hb-immersive-text .hb-dialogue {
+    color: var(--hb-primary-light);
+    font-weight: 500;
+}
+
+.hb-immersive-text .hb-thought {
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+}
+
+.hb-immersive-empty {
+    text-align: center;
+}
+
+.hb-immersive-empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.hb-immersive-empty-text {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 16px;
+    max-width: 300px;
+    line-height: 1.6;
+}
+
+.hb-immersive-typing {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 24px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+}
+
+.hb-immersive-gradient {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+/* ========== Immersive Mode Input Override ========== */
+.hb-immersive-view~.hb-input-panel {
+    background: rgba(0, 0, 0, 0.8);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hb-immersive-view~.hb-input-panel .hb-input-field {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.hb-immersive-view~.hb-input-panel .hb-input-field::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.hb-immersive-view~.hb-input-panel .hb-quick-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* ========== Immersive Mode Container ========== */
+.hb-immersive-mode {
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+}
+
+.hb-input-immersive {
+    background: rgba(0, 0, 0, 0.8) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hb-input-immersive .hb-input-field {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.hb-input-immersive .hb-input-field::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.hb-input-immersive .hb-quick-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.hb-input-immersive .hb-send-btn {
+    background: linear-gradient(135deg, var(--hb-primary), var(--hb-secondary));
+}

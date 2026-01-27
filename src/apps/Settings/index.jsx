@@ -61,11 +61,8 @@ const Settings = ({ onClose }) => {
                         <div className="absolute top-0 left-0 right-0 z-30">
                             {/* Background Layer (Blur & Gradient) */}
                             <div
-                                className="absolute top-0 left-0 right-0 h-28 pointer-events-none"
+                                className="absolute top-0 left-0 right-0 h-28 pointer-events-none bg-gradient-to-b from-[#F2F4F6]/95 to-transparent dark:from-black/90 dark:to-transparent backdrop-blur-xl"
                                 style={{
-                                    background: 'linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
-                                    backdropFilter: 'blur(20px)',
-                                    WebkitBackdropFilter: 'blur(20px)',
                                     maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
                                     WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)'
                                 }}
@@ -117,9 +114,9 @@ const Settings = ({ onClose }) => {
                                     onClick={() => setView('data')}
                                 />
                                 <SettingsItem
-                                    icon={InfoIcon} title="关于 HOS"
+                                    icon={InfoIcon} title="关于 suki"
                                     color="bg-transparent text-gray-400 dark:text-gray-500"
-                                    onClick={() => alert('HOSHINO OS v0.9\nMade with Love, React & Vite')}
+                                    onClick={() => alert('suki v0.9\nMade with Love')}
                                 />
                             </div>
                         </div>

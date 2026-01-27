@@ -53,16 +53,34 @@ const VoiceBubble = ({ content, duration = 3, isUser, borderRadius }) => {
                     `}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {content.includes('|||') ? (
-                        <div className="flex flex-col gap-1">
-                            <span>{content.split('|||')[0].trim()}</span>
-                            <span className={`text-[13px] ${isUser ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'} border-t ${isUser ? 'border-white/20' : 'border-black/5 dark:border-white/10'} pt-1 mt-0.5`}>
-                                {content.split('|||')[1].trim()}
-                            </span>
-                        </div>
-                    ) : (
-                        content
-                    )}
+                    {/* Parse content for bilingual display */}
+                    {(() => {
+                        // Support both old "|||" format and new "原文（翻译）" format
+                        if (content.includes('|||')) {
+                            const [orig, trans] = content.split('|||').map(s => s.trim());
+                            return (
+                                <div className="flex flex-col gap-1">
+                                    <span>{orig}</span>
+                                    <span className={`text-[13px] ${isUser ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'} border-t ${isUser ? 'border-white/20' : 'border-black/5 dark:border-white/10'} pt-1 mt-0.5`}>
+                                        {trans}
+                                    </span>
+                                </div>
+                            );
+                        }
+                        // New format: 原文（翻译）
+                        const match = content.match(/^(.+?)（(.+?)）$/);
+                        if (match) {
+                            return (
+                                <div className="flex flex-col gap-1">
+                                    <span>{match[1].trim()}</span>
+                                    <span className={`text-[13px] ${isUser ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'} border-t ${isUser ? 'border-white/20' : 'border-black/5 dark:border-white/10'} pt-1 mt-0.5`}>
+                                        {match[2].trim()}
+                                    </span>
+                                </div>
+                            );
+                        }
+                        return content;
+                    })()}
                 </div>
             )}
         </div>

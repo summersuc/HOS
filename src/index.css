@@ -1,5 +1,6 @@
 :root {
   --system-font: ui-sans-serif, system-ui, sans-serif;
+  --user-bubble-bg: #747678; /* Default User Bubble Color (Day) */
 }
 
 html,
@@ -55,7 +56,7 @@ button:focus-visible {
 
 @media (prefers-color-scheme: light) {
   :root {
-    color: #213547;
+    color: #747678; /* suki-text instead of #213547 */
     background-color: #ffffff;
   }
 

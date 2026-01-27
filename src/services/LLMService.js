@@ -1,7 +1,7 @@
 import { db } from '../db/schema';
 
 /**
- * HoshinoOS Unified LLM Service
+ * suki Unified LLM Service
  * "The Universal Cable"
  * 
  * This service connects any App (Messenger, Notes, etc.) to the 
@@ -129,17 +129,66 @@ export const llmService = {
     },
 
     /**
-     * 估算 Token 数量 (Heuristic for CJK/English Mixed)
+     * 估算 Token 数量 (Enhanced Precision for CJK/English Mixed)
+     * 基于 GPT 的 BPE tokenization 规则进行更精确估算
      * @param {string} text 
      * @returns {number} Estimated token count
      */
     estimateTokens(text) {
         if (!text) return 0;
-        // CJK characters (approx 1.5 tokens)
-        const cjk = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
-        // Other characters (approx 0.25 tokens - avg word len 4)
-        const other = text.length - cjk;
-        return Math.ceil(cjk * 1.5 + other / 4);
+
+        let tokens = 0;
+
+        // 1. CJK字符：每个中文字符约 1.3-1.5 tokens (GPT系列)
+        const cjkChars = text.match(/[\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef]/g) || [];
+        tokens += cjkChars.length * 1.3;
+
+        // 2. 日韩字符：类似CJK处理
+        const jpKrChars = text.match(/[\u3040-\u30ff\uac00-\ud7af]/g) || [];
+        tokens += jpKrChars.length * 1.5;
+
+        // 3. 提取非CJK文本进行英文分词
+        const nonCjkText = text.replace(/[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/g, ' ');
+
+        // 4. 英文单词分词：按空格和标点分割
+        const words = nonCjkText.split(/[\s\n\r\t]+/).filter(w => w.length > 0);
+
+        for (const word of words) {
+            if (!word) continue;
+
+            // 纯数字：约每3-4位一个token
+            if (/^\d+$/.test(word)) {
+                tokens += Math.ceil(word.length / 3.5);
+            }
+            // 短单词 (1-4字符)：通常1个token
+            else if (word.length <= 4) {
+                tokens += 1;
+            }
+            // 中等单词 (5-8字符)：通常1-2个token
+            else if (word.length <= 8) {
+                tokens += 1.5;
+            }
+            // 长单词 (9+字符)：按BPE拆分规则估算
+            else {
+                tokens += Math.ceil(word.length / 4);
+            }
+        }
+
+        // 5. 标点符号和特殊字符：通常独立成token
+        const punctuation = text.match(/[.,!?;:'"()\[\]{}@#$%^&*+=<>\/\\|`~\-_]/g) || [];
+        tokens += punctuation.length * 0.5;
+
+        // 6. Emoji：每个约2-3 tokens
+        const emojis = text.match(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu) || [];
+        tokens += emojis.length * 2.5;
+
+        // 7. JSON/代码结构开销 (如果检测到结构化内容)
+        const hasJson = text.includes('{') && text.includes('}');
+        if (hasJson) {
+            tokens += 10; // JSON结构基础开销
+        }
+
+        return Math.ceil(tokens);
     },
 
     /**
@@ -300,9 +349,9 @@ ${wb.after_scenario ? '\n' + wb.after_scenario + '\n' : ''}`;
             : replyCount;
 
         // 4. Part 2: Messenger Prompt - STRENGTHENED
-        const appPrompt = `[Context: HoshinoOS Messenger]
-Device: HoshinoOS (Mobile)
-Status: Chatting online via HOS Messenger.
+        const appPrompt = `[Context: suki Messenger]
+Device: suki (Mobile)
+Status: Chatting online via suki Messenger.
 [Time Context]
 ${timeContext}
 
@@ -314,28 +363,32 @@ ${timeContext}
    - Each bubble MUST be under 80 Chinese characters or 150 English characters.
    - Separate each bubble with a SINGLE newline (\\n).
    - FAILURE TO SPLIT = SYSTEM ERROR. DO NOT ignore this.
-${stickerPrompt ? stickerPrompt + '\n' : ''}${noPunctuation ? '4. NO PUNCTUATION: Omit all punctuation (,.!?). Use spaces/newlines instead.\n' : ''}${options.translationMode?.enabled ? `5. [BILINGUAL MODE]: 
-   - OUTPUT FORMAT (Apply to EACH bubble): "Original Text (Character's Native Language) ||| Translated Text (Chinese)"
-   - QUANTITY RULE: You MUST output ${replyDisplay} separate bubbles/lines as per Rule 3. The example below shows FORMAT ONLY, NOT QUANTITY.
-   - EXAMPLE FORMAT:
-     [Content 1] ||| [Translation 1]
-     [Content 2] ||| [Translation 2]
-     ...\n` : ''}
+${stickerPrompt ? stickerPrompt + '\n' : ''}${noPunctuation ? '4. NO PUNCTUATION: Omit all punctuation (,.!?). Use spaces/newlines instead.\n' : ''}${options.translationMode?.enabled ? `5. [BILINGUAL MODE - CRITICAL]: 
+   - TEXT FORMAT: "Original Text ||| Chinese Translation"
+   - SPECIAL COMMANDS (RedPacket/Transfer/Gift/Voice): Put translation INSIDE the command, NO extra text after!
+     CORRECT: [RedPacket: 100, 大好き！（最喜欢！）]
+     CORRECT: [Transfer: 520, 愛してる（爱你）]
+     CORRECT: [Gift: 花束（鲜花）]
+     CORRECT: [Voice: こんにちは！（你好！）]
+     WRONG: [RedPacket: 100, 大好き！] 受け取って！ (NO extra text after command!)
+   - EXAMPLE (3 bubbles):
+     おはよう！ ||| 早上好！
+     [Gift: ケーキ（蛋糕）]
+     嬉しい？ ||| 开心吗？\n` : ''}
 [Protocol]
 - [User sent Image: ...]: React to visual details.
 - [User sent Red Packet: ...]: React to money/luck.
 
-[Commands]
-- SEND STICKER: [Sticker: Name]
-- SEND VOICE: [Voice: Message Content] (e.g. [Voice: 哼，不理你了])
-- SEND RED PACKET: [RedPacket: Amount, Note] (e.g. [RedPacket: 100, 恭喜发财])
-- SEND TRANSFER: [Transfer: Amount, Note] (e.g. [Transfer: 520, 拿去买好吃的])
-- SEND GIFT: [Gift: GiftName] (e.g. [Gift: 鲜花])
-- CONTROL MUSIC: [Music: Next] (Skip current song)
-- PLAY MUSIC: [Music: Play keywords]
+[Commands] - MUST be on their own line, NO extra text after!
+- STICKER: [Sticker: Name]
+- VOICE: [Voice: Content${options.translationMode?.enabled ? '（翻译）' : ''}]
+- RED PACKET: [RedPacket: Amount, Note${options.translationMode?.enabled ? '（翻译）' : ''}]
+- TRANSFER: [Transfer: Amount, Note${options.translationMode?.enabled ? '（翻译）' : ''}]
+- GIFT: [Gift: Name${options.translationMode?.enabled ? '（翻译）' : ''}]
+- MUSIC: [Music: Next] or [Music: Play keywords]
 
 [System]
-Never describe actions like *hands you a red packet*. Use [RedPacket: ...] command instead.`;
+Never describe actions like *hands you a red packet*. Use commands instead.`;
 
         // 6. Assemble Messages
         const messages = [
@@ -385,6 +438,11 @@ Never describe actions like *hands you a red packet*. Use [RedPacket: ...] comma
                 } else {
                     // Apply timestamp prefix ONLY to active messages
                     content = timestampPrefix + content;
+                }
+
+                // [NEW] Append Listening History Context if present
+                if (msg.metadata?.listeningHistory) {
+                    content += `\n[Context: Before sending this, user listened to: ${msg.metadata.listeningHistory}]`;
                 }
 
                 messages.push({ role: msg.role, content: content });

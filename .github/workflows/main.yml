@@ -22,7 +22,7 @@ jobs:
       - name: Install
         run: npm install --legacy-peer-deps
       - name: Build
-        run: CI=false npm run build -- --base=/HOS/
+        run: CI=false npm run build -- --base=/suki/
       - name: Upload
         uses: actions/upload-pages-artifact@v3
         with:

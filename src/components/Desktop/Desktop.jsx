@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 import Dock from '../Dock/Dock';
 import AppIcon from './AppIcon';
 import { useTheme } from '../../context/ThemeContext';
@@ -14,7 +15,8 @@ import {
     useSensor,
     useSensors,
     TouchSensor,
-    DragOverlay
+    DragOverlay,
+    MeasuringStrategy
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -44,7 +46,7 @@ export const SortableItem = ({ id, content, isEditing, onOpenApp, onDeleteWidget
         transition,
         opacity: isDragging ? 0.3 : 1, // Shadow Placeholder: Visible but dimmed
         filter: isDragging ? 'grayscale(50%)' : 'none',
-        touchAction: 'none',
+        touchAction: (isEditing && content) ? 'none' : 'manipulation',
         zIndex: isDragging ? 50 : 1
     };
 
@@ -83,7 +85,7 @@ export const SortableItem = ({ id, content, isEditing, onOpenApp, onDeleteWidget
         return (
             <div
                 ref={setNodeRef} style={style} {...attributes} {...listeners}
-                className={`relative flex items-center justify-center w-full ${getAspectClass(content)} ${isEditing && !inDock ? 'jiggle' : ''}`}
+                className={`relative flex items-start justify-center w-full ${isEditing && !inDock ? 'jiggle' : ''}`}
             >
                 <AppIcon
                     app={app} inDock={inDock}
@@ -173,7 +175,7 @@ const getOccupiedSlots = (grid) => {
             for (let r = 0; r < h; r++) {
                 for (let c = 0; c < w; c++) {
                     const idx = (r_start + r) * GRID_COLS + (c_start + c);
-                    if (idx < 24) occupied.add(idx);
+                    occupied.add(idx);
                 }
             }
         }
@@ -195,6 +197,7 @@ const Desktop = () => {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [configModal, setConfigModal] = useState({ isOpen: false, widget: null });
     const [isLayoutDirty, setIsLayoutDirty] = useState(false);
+    const [activePageIndex, setActivePageIndex] = useState(0);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -219,7 +222,7 @@ const Desktop = () => {
             const { appId, params } = e.detail;
             if (appId && appRegistry[appId]) {
                 openApp(appId, params); // openApp supports params? Need to check useApp hook
-                // Assuming openApp(id) works. If params needed, useApp might need update or we rely on app internal listeners (like hos-app-share)
+                // Assuming openApp(id) works. If params needed, useApp might need update or we rely on app internal listeners (like suki-app-share)
                 // For now, openApp(appId) brings it to front.
             }
         };
@@ -293,13 +296,31 @@ const Desktop = () => {
                         ? parseWidgetSize(activeItem.size)
                         : { cols: 1, rows: 1 };
 
-                    // Adjust overIdx if widget hits boundary
+                    // Adjust overIdx if widget hits boundary (Page-aware)
                     let targetIdx = overIdx;
-                    const r_t = Math.floor(targetIdx / GRID_COLS);
-                    const c_t = targetIdx % GRID_COLS;
-                    if (c_t + cols > GRID_COLS) targetIdx -= (c_t + cols - GRID_COLS);
-                    if (r_t + rows > GRID_ROWS) targetIdx -= (r_t + rows - GRID_ROWS) * GRID_COLS;
+                    // Determine which page this index belongs to
+                    const ITEMS_PER_PAGE = 24;
+                    const GRID_ROWS_PER_PAGE = 6;
+
+                    const pageIndex = Math.floor(targetIdx / ITEMS_PER_PAGE);
+                    const localIdx = targetIdx % ITEMS_PER_PAGE;
+
+                    const r_local = Math.floor(localIdx / GRID_COLS);
+                    const c_local = localIdx % GRID_COLS;
+
+                    // Clamp Column
+                    if (c_local + cols > GRID_COLS) targetIdx -= (c_local + cols - GRID_COLS);
+
+                    // Clamp Row (Within Page)
+                    if (r_local + rows > GRID_ROWS_PER_PAGE) {
+                        const rowOverflow = (r_local + rows) - GRID_ROWS_PER_PAGE;
+                        targetIdx -= rowOverflow * GRID_COLS;
+                    }
+
                     if (targetIdx < 0) targetIdx = 0;
+
+                    // Optimization: If target position is same as current, abort
+                    if (targetIdx === activeIdx) return items;
 
                     // Compute indices covered by the widget at target position
                     const targetRow = Math.floor(targetIdx / GRID_COLS);
@@ -307,7 +328,7 @@ const Desktop = () => {
                     for (let r = 0; r < rows; r++) {
                         for (let c = 0; c < cols; c++) {
                             const idx = (targetRow + r) * GRID_COLS + (targetCol + c);
-                            if (idx < 24) activeFootprint.add(idx);
+                            if (idx < next.length) activeFootprint.add(idx);
                         }
                     }
 
@@ -331,18 +352,28 @@ const Desktop = () => {
                     // Helper to check if an item fits at a position
                     const checkFit = (idx, item) => {
                         if (!item || typeof item !== 'object' || item.type !== 'widget') {
-                            // Simple icon
-                            return !next[idx] && !currentOccupied.has(idx) && !activeFootprint.has(idx);
+                            // Simple icon - just check bounds
+                            return idx < next.length && !next[idx] && !currentOccupied.has(idx) && !activeFootprint.has(idx);
                         }
                         const { cols, rows } = parseWidgetSize(item.size);
                         const r_s = Math.floor(idx / GRID_COLS);
                         const c_s = idx % GRID_COLS;
-                        if (c_s + cols > GRID_COLS || r_s + rows > GRID_ROWS) return false;
+
+                        // Check Page Boundary Crossing
+                        const ITEMS_PER_PAGE = 24;
+                        const GRID_ROWS_PER_PAGE = 6;
+
+                        const pageStart = Math.floor(idx / ITEMS_PER_PAGE);
+                        const localRow = r_s % GRID_ROWS_PER_PAGE;
+
+                        // If widget extends beyond current page's rows
+                        if (localRow + rows > GRID_ROWS_PER_PAGE) return false;
+                        if (c_s + cols > GRID_COLS) return false;
 
                         for (let r = 0; r < rows; r++) {
                             for (let c = 0; c < cols; c++) {
                                 const checkIdx = (r_s + r) * GRID_COLS + (c_s + c);
-                                if (checkIdx >= 24) return false;
+                                if (checkIdx >= next.length) return false;
                                 if (next[checkIdx] || currentOccupied.has(checkIdx) || activeFootprint.has(checkIdx)) return false;
                             }
                         }
@@ -369,11 +400,11 @@ const Desktop = () => {
                     victims.forEach(victim => {
                         let placed = false;
                         const startSearch = targetIdx;
-                        let maxDist = Math.max(startSearch, 24 - startSearch);
+                        let maxDist = Math.max(startSearch, next.length - startSearch);
 
                         // Function to attempt placement
                         const tryPlace = (idx) => {
-                            if (idx < 0 || idx >= 24) return false;
+                            if (idx < 0 || idx >= next.length) return false;
                             if (checkFit(idx, victim)) {
                                 next[idx] = victim;
                                 markOccupied(idx, victim);
@@ -389,7 +420,7 @@ const Desktop = () => {
 
                         if (!placed) {
                             // Fallback: Scan entire grid from 0
-                            for (let i = 0; i < 24; i++) {
+                            for (let i = 0; i < next.length; i++) {
                                 if (tryPlace(i)) { placed = true; break; }
                             }
                         }
@@ -479,23 +510,37 @@ const Desktop = () => {
         setIsLayoutDirty(true);
     };
 
-    const renderGrid = () => {
+    const renderGrid = (pageIndex) => {
+        const start = pageIndex * 24;
+        const end = start + 24;
         const processed = new Set();
-        return desktopApps.map((item, idx) => {
-            if (processed.has(idx)) return null;
-            const id = (item && typeof item === 'object') ? item.id : (item || `slot-${idx}`);
+
+        // Only map the slice for this page
+        return desktopApps.slice(start, end).map((item, localIdx) => {
+            const globalIdx = start + localIdx;
+
+            if (processed.has(globalIdx)) return null;
+            const id = (item && typeof item === 'object') ? item.id : (item || `slot-${globalIdx}`);
+
+            // Update widget visual logic to be relative to the page? 
+            // Actually, CSS grid handles the layout per page 4x6 (24 slots).
+            // A widget at globalIdx 25 (Page 1, idx 1) should be at Row 0, Col 1 of Page 1.
+            // The SortableItem just renders in flow order.
+
+            // However, large widgets crossing page boundaries is tricky.
+            // For now, assume widgets don't cross pages or getOccupiedSlots handles collision to prevent it.
 
             if (item && typeof item === 'object' && item.type === 'widget') {
                 const { cols, rows } = parseWidgetSize(item.size);
 
                 for (let r = 0; r < rows; r++) {
                     for (let c = 0; c < cols; c++) {
-                        const targetIdx = idx + (r * GRID_COLS) + c;
-                        if (targetIdx < 24) processed.add(targetIdx);
+                        const targetIdx = globalIdx + (r * GRID_COLS) + c;
+                        processed.add(targetIdx);
                     }
                 }
             } else {
-                processed.add(idx);
+                processed.add(globalIdx);
             }
 
             return (
@@ -511,12 +556,22 @@ const Desktop = () => {
 
     return (
         <DndContext
-            sensors={sensors} collisionDetection={rectIntersection}
+            sensors={sensors}
+            collisionDetection={rectIntersection}
+            measuring={{
+                droppable: {
+                    strategy: MeasuringStrategy.Always
+                }
+            }}
+            autoScroll={{
+                threshold: { x: 0.05, y: 0.05 }, // 5% threshold is much safer
+                acceleration: 5 // Slower, smoother scroll
+            }}
             onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}
         >
             <div
                 id="desktop-area"
-                className={`flex flex-col h-full w-full pt-[var(--sat)] pb-[var(--sab)] px-2 select-none overflow-hidden ${isEditing ? 'touch-none' : ''}`}
+                className={`flex flex-col h-full w-full pt-[var(--sat)] pb-[var(--sab)] px-2 select-none overflow-hidden`}
                 onClick={(e) => {
                     const isBg = e.target.id === 'desktop-area' || e.target.id === 'grid-container' || e.target.id === 'status-bar-gap';
                     if (isBg && isEditing) setIsEditing(false);
@@ -524,16 +579,78 @@ const Desktop = () => {
             >
                 <div id="status-bar-gap" className="h-2 w-full shrink-0" />
 
+                {/* Edit Mode Done Button & Add Page Button */}
+                <AnimatePresence>
+                    {isEditing && (
+                        <>
+                            {/* Add Page Button (Left) */}
+                            <motion.button
+                                initial={{ opacity: 0, x: -20, scale: 0.9 }}
+                                animate={{ opacity: 1, x: 0, scale: 1 }}
+                                exit={{ opacity: 0, x: -20, scale: 0.9 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                                onClick={() => {
+                                    setDesktopApps(prev => [...prev, ...new Array(24).fill(null)]);
+                                    // Smooth scroll to the new page
+                                    setTimeout(() => {
+                                        const container = document.getElementById('grid-container');
+                                        if (container) container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+                                    }, 100);
+                                }}
+                                className="absolute top-12 left-6 z-50 bg-[#333333] hover:bg-[#444444] text-white w-8 h-8 rounded-lg flex items-center justify-center shadow-lg active:scale-95 transition-colors"
+                            >
+                                <Plus size={18} strokeWidth={2.5} />
+                            </motion.button>
+
+                            {/* Done Button (Right) */}
+                            <motion.button
+                                initial={{ opacity: 0, y: -20, scale: 0.9 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                                onClick={() => setIsEditing(false)}
+                                className="absolute top-12 right-6 z-50 bg-[#333333] hover:bg-[#444444] text-white px-4 py-1.5 rounded-lg text-xs font-semibold shadow-lg active:scale-95 transition-colors"
+                            >
+                                完成
+                            </motion.button>
+                        </>
+                    )}
+                </AnimatePresence>
+
                 <SortableContext
                     items={desktopApps.map((item, i) => (item && typeof item === 'object' ? item.id : (item || `slot-${i}`)))}
                     strategy={rectSortingStrategy}
                 >
                     <div
                         id="grid-container"
-                        className="grid grid-cols-4 gap-x-2 gap-y-2 content-start min-h-0"
+                        className={`flex overflow-x-auto ${activeId ? '' : 'snap-x snap-mandatory'} scrollbar-hide h-full`}
+                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        onScroll={(e) => {
+                            const page = Math.round(e.target.scrollLeft / e.target.clientWidth);
+                            setActivePageIndex(page);
+                            if (window.setDesktopPageIndex) window.setDesktopPageIndex(page);
+                        }}
                     >
-                        {renderGrid()}
+                        {Array.from({ length: Math.ceil(desktopApps.length / 24) || 1 }).map((_, pageIndex) => (
+                            <div
+                                key={pageIndex}
+                                className="w-full flex-shrink-0 grid grid-cols-4 gap-x-2 gap-y-4 content-start min-h-0 px-2 snap-center"
+                            >
+                                {renderGrid(pageIndex)}
+                            </div>
+                        ))}
                     </div>
+                    {/* Pagination Dots (Only show if > 1 page) */}
+                    {(Math.ceil(desktopApps.length / 24) || 1) > 1 && (
+                        <div className="absolute bottom-[100px] left-0 right-0 flex justify-center gap-2 pointer-events-none z-10">
+                            {Array.from({ length: Math.ceil(desktopApps.length / 24) || 1 }).map((_, i) => (
+                                <div
+                                    key={i}
+                                    className={`w-1.5 h-1.5 rounded-full transition-all ${i === (activePageIndex || 0) ? 'bg-white' : 'bg-white/40'}`}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </SortableContext>
 
                 {/* Empty State Recovery */}
@@ -548,11 +665,12 @@ const Desktop = () => {
                     </div>
                 )}
 
-                {/* 弹性占位符：确保将 Dock 推到底部 */}
+                {/* Spacer to push Dock */}
                 <div className="flex-1" />
 
                 <DragOverlay>
                     {activeId ? (() => {
+                        // ... (DragOverlay content logic remains same)
                         const item = desktopApps.find(i => (i === activeId) || (i?.id === activeId));
                         if (!item) {
                             const dockApp = dockApps.find(id => id === activeId);
@@ -579,7 +697,7 @@ const Desktop = () => {
                     })() : null}
                 </DragOverlay>
 
-                <div className="shrink-0 mb-1 relative z-50">
+                <div className="shrink-0 mb-0 relative z-50">
                     <Dock isEditing={isEditing} />
                 </div>
             </div>

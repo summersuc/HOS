@@ -192,7 +192,7 @@ const DataPage = ({ onBack }) => {
 
             const a = document.createElement('a');
             a.href = url;
-            a.download = `hoshino_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `suki_backup_${new Date().toISOString().slice(0, 10)}.json`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (e) {

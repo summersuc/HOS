@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useDragControls, useAnimation } from 'framer-motion';
 import { ChevronDown, Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, ListMusic, Heart, MessageSquare, Mic2, Sparkles, Headphones } from 'lucide-react';
 import { MusicService } from '../../../services/MusicService';
+import { useAudio } from '../../../hooks/useAudio';
 import { useListenTogether } from '../../../hooks/useListenTogether';
 import LyricsView from './LyricsView';
 import CommentSheet from './CommentSheet';
@@ -15,6 +16,7 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
     const [viewMode, setViewMode] = useState('vinyl'); // 'vinyl' | 'lyrics'
     const [showComments, setShowComments] = useState(false);
     const { isEnabled: isListenTogether, toggle: toggleListenTogether } = useListenTogether();
+    const { queue } = useAudio(); // Access queue for sharing
 
     // Animation Controls
     const controls = useAnimation();
@@ -226,44 +228,37 @@ const Player = ({ track, isPlaying, progress, duration, onTogglePlay, onClose, o
                         onSelect={(convId) => {
                             setShowContactSelector(false);
 
+                            // Determine Share Type
+                            const isPlaylist = queue && queue.length > 1;
+                            const shareData = {
+                                title: isPlaylist ? `分享歌单 (${queue.length}首)` : track.name,
+                                artist: isPlaylist ? '多个艺术家' : track.ar?.[0]?.name,
+                                cover: track.al?.picUrl,
+                                songId: track.id, // Current entry
+                                type: isPlaylist ? 'playlist' : 'song',
+                                playlist: isPlaylist ? queue : undefined
+                            };
+
                             // Dispatch Share Event
-                            const event = new CustomEvent('hos-app-share', {
+                            const event = new CustomEvent('suki-app-share', {
                                 detail: {
                                     targetApp: 'messenger',
                                     action: 'share-music',
-                                    data: {
-                                        title: track.name,
-                                        artist: track.ar?.[0]?.name,
-                                        cover: track.al?.picUrl,
-                                        songId: track.id,
-                                        type: 'song'
-                                    },
+                                    data: shareData,
                                     targetId: convId
                                 }
                             });
                             window.dispatchEvent(event);
 
-                            // Close Player implies minimizing music?
-                            // Maybe keep music app open but user might manually switch or system switches.
-                            // For better UX, let's close the player/minimize app
-                            // But 'hos-app-share' handling in Messenger should ideally bring Messenger to front.
-                            // We'll rely on global event handler in Messenger/Index to switch tabs.
-                            // BUT the OS needs to switch APP focus.
-                            // We can trigger an OS level event if needed. For now assume single page app context.
                             onClose(); // Minify Player
+
                             // Launch messenger with params
                             window.dispatchEvent(new CustomEvent('launch-app', {
                                 detail: {
                                     appId: 'messenger',
                                     params: {
                                         action: 'share-music',
-                                        data: {
-                                            title: track.name,
-                                            artist: track.ar?.[0]?.name,
-                                            cover: track.al?.picUrl,
-                                            songId: track.id,
-                                            type: 'song'
-                                        },
+                                        data: shareData,
                                         targetId: convId
                                     }
                                 }

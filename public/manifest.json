@@ -1,6 +1,6 @@
 {
-    "name": "HoshinoOS",
-    "short_name": "HOS",
+    "name": "suki",
+    "short_name": "suki",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",

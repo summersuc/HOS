@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Avatar from '../components/Avatar';
 import { motion, AnimatePresence, useMotionValue, useAnimation, useDragControls } from 'framer-motion';
 import { MoreVertical, User, X, Settings, MessageCircle, Square, CheckSquare } from 'lucide-react';
@@ -38,6 +39,8 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
     const lastTrackRef = useRef(null);
     const listeningHistory = useRef([]); // Store songs listened to while silent
 
+
+
     // Debug State
     const [debugRequest, setDebugRequest] = useState('');
     const [debugResponse, setDebugResponse] = useState('');
@@ -55,11 +58,43 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
         return 0;
     }, [conversationId]);
 
+    // --- History Recording Logic ---
+    useEffect(() => {
+        if (!isListenTogether || !currentTrack) return;
+
+        // Prevent duplicate recording if same track ID
+        if (lastTrackRef.current === currentTrack.id) return;
+        lastTrackRef.current = currentTrack.id;
+
+        const songInfo = `${currentTrack.name} by ${currentTrack.ar?.[0]?.name || 'Unknown'}`;
+
+        // 1. Add to local ref for LLM Context (Next user message will carry this context)
+        // Check if already in buffer to avoid spamming if effects re-run
+        if (!listeningHistory.current.includes(songInfo)) {
+            listeningHistory.current.push(songInfo);
+        }
+
+        // 2. Persist to DB for Popup History
+        // We record "started playing" so history feels responsive
+        db.messengerMessages.add({
+            conversationType: 'single',
+            conversationId: safeCid,
+            role: 'user', // 'user' role ensures it's indexed correctly for queries if needed
+            content: `[History Summary: User listened to ${songInfo}]`,
+            msgType: 'event_music_history', // Hidden type
+            timestamp: Date.now()
+        }).catch(e => console.error("Failed to save music history", e));
+
+    }, [currentTrack, isListenTogether, safeCid]);
+
     // Modal State
     const [actionModal, setActionModal] = useState(null); // { type, label, icon... }
 
     // API Error Modal State
     const [apiError, setApiError] = useState(null); // { title: string, content: string }
+
+    // Card Interaction Modal State (WeChat-style accept/reject)
+    const [cardInteraction, setCardInteraction] = useState(null); // { msg, cardType }
 
     // Toast (Removed for API errors, kept if needed for others, but unused now)
     // const { showToast, ToastComponent } = useToast();
@@ -70,6 +105,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
     const [noPunctuation, setNoPunctuation] = useState(false); // New state
     const [avatarMode, setAvatarMode] = useState('none');
     const [headerStyle, setHeaderStyle] = useState('standard');
+    const [solidHeader, setSolidHeader] = useState(false);
     const [maxTokens, setMaxTokens] = useState(5000); // Output length limit
     const [translationMode, setTranslationMode] = useState({ enabled: false, showOriginal: true, style: 'merged', interaction: 'always' });
     const [estTokens, setEstTokens] = useState(0);
@@ -81,6 +117,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
     const scrollRef = useRef(null);
     const bottomRef = useRef(null); // New Anchor
     const inputRef = useRef(null);
+    const longPressTimerRef = useRef(null); // For mobile long-press detection
 
     const character = useLiveQuery(() => db.characters.get(characterId), [characterId]);
     const conversation = useLiveQuery(() => db.conversations.get(safeCid), [safeCid]);
@@ -175,11 +212,12 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
             if (conversation.noPunctuation !== undefined) setNoPunctuation(conversation.noPunctuation);
             if (conversation.avatarMode) setAvatarMode(conversation.avatarMode);
             if (conversation.headerStyle) setHeaderStyle(conversation.headerStyle);
+            if (conversation.solidHeader !== undefined) setSolidHeader(conversation.solidHeader);
             if (conversation.maxTokens !== undefined) setMaxTokens(conversation.maxTokens);
             if (conversation.translationMode) setTranslationMode({ ...translationMode, ...conversation.translationMode });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [conversation?.id, conversation?.historyLimit, conversation?.replyCount, conversation?.noPunctuation, conversation?.avatarMode, conversation?.headerStyle, JSON.stringify(conversation?.translationMode), conversation?.maxTokens]); // Track all settings for real-time update
+    }, [conversation?.id, conversation?.historyLimit, conversation?.replyCount, conversation?.noPunctuation, conversation?.avatarMode, conversation?.headerStyle, conversation?.solidHeader, JSON.stringify(conversation?.translationMode), conversation?.maxTokens]); // Track all settings for real-time update
 
     // Load Custom CSS
     useEffect(() => {
@@ -270,6 +308,13 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
             }
         }
     }, [currentTrack?.id, isListenTogether, conversationId]);
+
+    // [Fix] Clear history when Listen Together ends
+    useEffect(() => {
+        if (!isListenTogether) {
+            listeningHistory.current = [];
+        }
+    }, [isListenTogether]);
 
     // --- Core AI Logic (Refactored for Splitting) ---
     const runAI = async (userText) => {
@@ -372,13 +417,12 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     translationPart = parts[1].trim();
                 }
 
-                // Clean up translation part if it's also wrapped in a command (Recursive Fix)
-                if (translationPart) {
-                    // Strip all [Sticker: ...], [Voice: ...], etc tags from translation
-                    // We can use a global replacement to remove everything inside brackets that looks like a command
-                    const cleanTransRegex = /\[\s*(Sticker|RedPacket|Transfer|Gift|Image|图片|Voice|语音|Music|(?:Context:\s*)?User\s+sent\s+Voice\s+Message)[:：]\s*(.*?)\s*\]/gi;
-                    translationPart = translationPart.replace(cleanTransRegex, (match, p1, p2) => p2.trim()).trim();
-                }
+                // NEW: Helper to extract inline translation from args like "原文（翻译）"
+                const extractInlineTrans = (str) => {
+                    const match = str.match(/^(.+?)（(.+?)）$/);
+                    if (match) return { orig: match[1].trim(), trans: match[2].trim() };
+                    return { orig: str, trans: null };
+                };
 
                 if (typeStr === 'sticker') {
                     msgType = 'sticker';
@@ -387,53 +431,46 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                 } else if (typeStr === 'redpacket') {
                     msgType = 'redpacket';
                     const args = argsStr.split(/,|，/).map(s => s.trim());
-                    metadata = { amount: args[0], note: args[1] || '恭喜发财' };
+                    const { orig: origNote, trans: transNote } = extractInlineTrans(args[1] || '恭喜发财');
+                    const displayNote = transNote ? `${origNote}（${transNote}）` : origNote;
+                    metadata = { amount: args[0], note: displayNote, origNote, transNote };
                     finalContent = `红包: ${metadata.amount}`;
                 } else if (typeStr === 'transfer') {
                     msgType = 'transfer';
                     const args = argsStr.split(/,|，/).map(s => s.trim());
-                    metadata = { amount: args[0], note: args[1] || '转账' };
+                    const { orig: origNote, trans: transNote } = extractInlineTrans(args[1] || '转账');
+                    const displayNote = transNote ? `${origNote}（${transNote}）` : origNote;
+                    metadata = { amount: args[0], note: displayNote, origNote, transNote };
                     finalContent = `转账: ${metadata.amount}`;
                 } else if (typeStr === 'gift') {
                     msgType = 'gift';
-                    metadata = { giftName: argsStr };
-                    finalContent = argsStr;
+                    const { orig: origGift, trans: transGift } = extractInlineTrans(argsStr);
+                    const displayGift = transGift ? `${origGift}（${transGift}）` : origGift;
+                    metadata = { giftName: displayGift, origGift, transGift };
+                    finalContent = displayGift;
                 } else if (typeStr === 'image' || typeStr === '图片') {
                     msgType = 'image';
                     metadata = { description: argsStr };
                     finalContent = argsStr;
                 } else if (typeStr.includes('voice') || typeStr.includes('语音')) {
-                    // Covers 'voice', 'user sent voice message', 'context: user sent voice message'
                     msgType = 'voice';
-
-                    // Cleanup quotes if AI added them
                     argsStr = argsStr.replace(/^["']|["']$/g, '');
-
-                    // Estimate duration
-                    const duration = Math.min(60, Math.max(2, Math.ceil(argsStr.length * 0.3)));
-                    metadata = { duration };
-
-                    if (translationPart) {
-                        finalContent = `${argsStr} ||| ${translationPart}`;
-                    } else {
-                        finalContent = argsStr;
-                    }
+                    const { orig: origVoice, trans: transVoice } = extractInlineTrans(argsStr);
+                    const duration = Math.min(60, Math.max(2, Math.ceil(origVoice.length * 0.3)));
+                    const displayContent = transVoice ? `${origVoice}（${transVoice}）` : origVoice;
+                    metadata = { duration, origContent: origVoice, transContent: transVoice };
+                    finalContent = displayContent;
                 } else if (typeStr === 'music') {
-                    // Handle Music Command
                     if (argsStr.toLowerCase() === 'next') {
                         playNextTrack();
-                        return; // Side effect only
-                    }
-                    if (argsStr.toLowerCase().startsWith('play')) {
-                        // Placeholder for play command
-                        // finalContent = `[Music: ${argsStr}]`;
+                        return;
                     }
                 }
 
                 addToQueue({
                     type: msgType,
                     content: finalContent,
-                    metadata: metadata
+                    metadata // Translation already merged into display fields
                 });
 
             } else {
@@ -448,8 +485,8 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
 
                     // Also strip command tags from pure text translation
                     if (translationPart) {
-                        const cleanTransRegex = /\[\s*(Sticker|RedPacket|Transfer|Gift|Image|图片|Voice|语音|Music|(?:Context:\s*)?User\s+sent\s+Voice\s+Message)[:：]\s*(.*?)\s*\]/gi;
-                        translationPart = translationPart.replace(cleanTransRegex, (match, p1, p2) => p2.trim()).trim();
+                        const cleanTransRegex = /\[\s*(Sticker|RedPacket|Transfer|Gift|Image|图片|Voice|语音|Music|(?:Context:\s*)?User\s+sent\s+Voice\s+Message)[:：]\s*[^\]]*\]/gi;
+                        translationPart = translationPart.replace(cleanTransRegex, '').trim();
                     }
                 }
 
@@ -594,29 +631,15 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
             }
 
             // Inject Listening History if exists
-            let contentToSend = text;
+            let historyContext = null;
             if (listeningHistory.current.length > 0) {
-                // Determine if we should clear it or just append. Clear it.
                 const historyStr = listeningHistory.current.join(' -> ');
-                const historyNote = `\n[System Helper: While you were silent, user listened to: ${historyStr}. Currently playing: ${currentTrack?.name || 'Nothing'}]`;
-
-                // Append as hidden context? Or visible? 
-                // User said "System needs to record... package together and send". 
-                // Let's make it a system message insert BEFORE user message so AI sees it as context.
-
-                await db.messengerMessages.add({
-                    conversationType: 'single',
-                    conversationId: safeCid,
-                    role: 'system',
-                    content: `[History Summary: User listened to ${historyStr}]`,
-                    msgType: 'event_music_history', // Hidden type
-                    timestamp: Date.now() - 50
-                });
-
+                historyContext = historyStr;
                 listeningHistory.current = []; // Reset
             }
 
             // Handle Quote
+            let contentToSend = text;
             if (replyTo) {
                 contentToSend = `[Quote: ${replyTo.name} said "${replyTo.content}"]\n${contentToSend}`;
                 setReplyTo(null);
@@ -634,7 +657,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     role: 'user',
                     content: voiceContent,
                     msgType: 'voice',
-                    metadata: { duration },
+                    metadata: { duration, listeningHistory: historyContext },
                     timestamp: Date.now()
                 });
                 await runAI(null); // Context builder will pick up the just-added msg from DB
@@ -647,6 +670,7 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                 role: 'user',
                 content: contentToSend,
                 msgType: 'text',
+                metadata: { listeningHistory: historyContext },
                 timestamp: Date.now()
             });
             await runAI(null); // Context builder will pick up the just-added msg from DB
@@ -844,25 +868,64 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
             switch (msg.msgType) {
                 case 'image': return <RichImageBubble content={msg.content} />;
                 case 'gift':
+                    // giftName already contains "原文（翻译）" format from parser
+                    const giftName = msg.metadata?.giftName || msg.content;
                     return (
-                        <div className="flex items-center gap-3 min-w-[220px] p-3 bg-white dark:bg-[#1C1C1E] text-gray-900 dark:text-white rounded-2xl border-2 border-pink-100 dark:border-pink-900/30 shadow-sm">
+                        <div
+                            onClick={(e) => { e.stopPropagation(); handleCardInteraction(msg, 'gift'); }}
+                            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); handleCardInteraction(msg, 'gift'); }}
+                            className="flex items-center gap-3 min-w-[220px] p-3 bg-white dark:bg-[#1C1C1E] text-gray-900 dark:text-white rounded-2xl border-2 border-pink-100 dark:border-pink-900/30 shadow-sm cursor-pointer active:scale-[0.98] transition-transform"
+                        >
                             <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center shrink-0"><Gift size={24} className="text-pink-500" /></div>
-                            <div className="flex flex-col"><span className="text-sm font-semibold opacity-90">送出礼物</span><span className="text-base font-bold text-pink-500">{msg.metadata?.giftName || msg.content}</span></div>
+                            <div className="flex flex-col">
+                                <span className="text-sm font-semibold opacity-90">送出礼物</span>
+                                <span className="text-base font-bold text-pink-500">{giftName}</span>
+                            </div>
                         </div>
                     );
                 case 'transfer':
-                    const amount = parseFloat(msg.metadata?.amount || '0').toFixed(2);
-                    const targetName = msg.role === 'user' ? (character?.name || '朋友') : '你';
+                    const transferAmount = parseFloat(msg.metadata?.amount || '0').toFixed(2);
+                    const transferTarget = msg.role === 'user' ? (character?.name || '朋友') : '你';
+                    // note already contains "原文（翻译）" format from parser
+                    const transferNote = msg.metadata?.note || '微信转账';
                     return (
-                        <div className="flex flex-col min-w-[240px] p-4 bg-[#F79C1D] text-white rounded-2xl shadow-sm">
-                            <div className="flex items-center gap-3 mb-2"><div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center"><ArrowRightLeft size={20} className="text-white" /></div><div className="flex flex-col text-white"><span className="text-sm opacity-80">转账给{targetName}</span><span className="text-lg font-bold">¥{amount}</span></div></div>
-                            <div className="border-t border-white/20 pt-1"><span className="text-xs text-white/50">{msg.metadata?.note || '微信转账'}</span></div>
+                        <div
+                            onClick={(e) => { e.stopPropagation(); handleCardInteraction(msg, 'transfer'); }}
+                            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); handleCardInteraction(msg, 'transfer'); }}
+                            className="flex flex-col min-w-[240px] p-4 bg-[#F79C1D] text-white rounded-2xl shadow-sm cursor-pointer active:scale-[0.98] transition-transform"
+                        >
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center"><ArrowRightLeft size={20} className="text-white" /></div>
+                                <div className="flex flex-col text-white">
+                                    <span className="text-sm opacity-80">转账给{transferTarget}</span>
+                                    <span className="text-lg font-bold">¥{transferAmount}</span>
+                                </div>
+                            </div>
+                            <div className="border-t border-white/20 pt-1">
+                                <span className="text-xs text-white/70">{transferNote}</span>
+                            </div>
                         </div>
                     );
                 case 'redpacket':
+                    // note already contains "原文（翻译）" format from parser
+                    const rpNote = msg.metadata?.note || '恭喜发财';
                     return (
-                        <div className="flex flex-col min-w-[240px] p-4 bg-[#EA5F39] text-white rounded-2xl shadow-sm">
-                            <div className="flex items-center gap-3 mb-2"><div className="w-10 h-10 bg-yellow-100/20 rounded-lg flex items-center justify-center"><Wallet size={20} className="text-yellow-200" /></div><div className="flex flex-col text-white"><span className="text-base font-bold truncate max-w-[140px]">{msg.metadata?.note || '恭喜发财'}</span><span className="text-xs opacity-80">查看红包</span></div></div>
+                        <div
+                            onClick={(e) => {
+                                console.log('🔴 RedPacket card clicked!');
+                                e.stopPropagation();
+                                handleCardInteraction(msg, 'redpacket');
+                            }}
+                            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); handleCardInteraction(msg, 'redpacket'); }}
+                            className="flex flex-col min-w-[240px] p-4 bg-[#EA5F39] text-white rounded-2xl shadow-sm cursor-pointer active:scale-[0.98] transition-transform"
+                        >
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-yellow-100/20 rounded-lg flex items-center justify-center"><Wallet size={20} className="text-yellow-200" /></div>
+                                <div className="flex flex-col text-white">
+                                    <span className="text-base font-bold truncate max-w-[180px]">{rpNote}</span>
+                                    <span className="text-xs opacity-80">查看红包</span>
+                                </div>
+                            </div>
                             <div className="border-t border-white/10 pt-1"><span className="text-xs text-white/50">微信红包</span></div>
                         </div>
                     );
@@ -890,6 +953,20 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                         isUser={msg.role === 'user'}
                         borderRadius={getBubbleCorners(msg, index, messages)}
                     />;
+                case 'card_response':
+                    const isAccept = msg.metadata?.action === 'accept';
+                    const respType = msg.metadata?.cardType;
+                    const respColor = respType === 'redpacket' ? 'bg-[#EA5F39]' :
+                        respType === 'transfer' ? 'bg-[#F79C1D]' : 'bg-pink-500';
+                    return (
+                        <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-white text-sm ${respColor}`}>
+                            {isAccept ? (
+                                <><Check size={14} /> 已收下{respType === 'transfer' ? ` ¥${msg.metadata?.amount || ''}` : ''}</>
+                            ) : (
+                                <><span className="opacity-70">已退回</span></>
+                            )}
+                        </div>
+                    );
                 default: return <div>{msg.content}</div>;
             }
         }
@@ -939,8 +1016,8 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
 
         // Standard Text Bubbles
         if (isUser) {
-            // Gradient Blue for Light, specific Dark Grey for Dark
-            return base + "bg-gradient-to-br from-blue-500 via-blue-600 to-blue-500 dark:from-transparent dark:via-transparent dark:to-transparent dark:bg-[#3A3A3C] text-white dark:text-gray-200 px-3 py-2 shadow-lg shadow-blue-500/20 dark:shadow-none dark:border dark:border-white/10";
+            // Suki Day Mode: #747678 (Deep Gray Blue), Dark Mode: #3A3A3C
+            return base + "bg-[#747678] dark:bg-[#3A3A3C] text-white dark:text-gray-200 px-3 py-2 shadow-lg shadow-[#747678]/20 dark:shadow-none dark:border dark:border-white/10";
         } else if (msg.role === 'system') {
             return "";
         } else {
@@ -1000,6 +1077,51 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
         } catch (e) {
             setIsTyping(false);
         }
+    };
+
+    // --- Card Interaction (WeChat-style Accept/Reject) ---
+    const handleCardInteraction = (msg, cardType) => {
+        console.log('🎴 handleCardInteraction called:', { role: msg.role, cardType, msgId: msg.id });
+        // Only show interaction for incoming cards (from AI)
+        if (msg.role === 'assistant') {
+            console.log('🎴 Setting cardInteraction state...');
+            setCardInteraction({ msg, cardType });
+            console.log('🎴 cardInteraction should be set now');
+            triggerHaptic();
+        } else {
+            console.log('🎴 Skipped - not assistant role');
+        }
+    };
+
+    const handleCardResponse = async (action) => {
+        if (!cardInteraction) return;
+
+        const { msg, cardType } = cardInteraction;
+        const actionLabel = action === 'accept' ? '已收下' : '已退回';
+        const typeLabel = cardType === 'redpacket' ? '红包' : cardType === 'transfer' ? '转账' : '礼物';
+
+        // Add response message to queue (will be sent with next user message)
+        const responseContent = action === 'accept'
+            ? `[${typeLabel}已领取] ${msg.metadata?.note || msg.metadata?.giftName || ''}`
+            : `[${typeLabel}已退回] ${msg.metadata?.note || msg.metadata?.giftName || ''}`;
+
+        await db.messengerMessages.add({
+            conversationType: 'single',
+            conversationId: safeCid,
+            role: 'user',
+            content: responseContent,
+            msgType: 'card_response',
+            metadata: {
+                originalMsgId: msg.id,
+                action,
+                cardType,
+                ...msg.metadata
+            },
+            timestamp: Date.now()
+        });
+
+        setCardInteraction(null);
+        triggerHaptic();
     };
 
     // --- Context Menu Actions ---
@@ -1173,19 +1295,20 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
             `}</style>
 
             {/* Custom Header (Replicating IOSPage Header) */}
-            {/* Custom Header (V3: Soft Gradient Blur) */}
+            {/* Custom Header (V3: Soft Gradient Blur or Solid Header) */}
             <div className="absolute top-0 left-0 right-0 z-30">
-                {/* Background Layer - Masked Blur */}
-                <div
-                    className="absolute top-0 left-0 right-0 h-28 pointer-events-none"
-                    style={{
-                        background: 'linear-gradient(to bottom, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 100%)',
-                        backdropFilter: 'blur(50px)',
-                        WebkitBackdropFilter: 'blur(50px)',
-                        maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
-                        WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)'
-                    }}
-                />
+                {/* Background Layer */}
+                {solidHeader ? (
+                    <div className="absolute inset-0 h-[calc(50px+env(safe-area-inset-top))] bg-white dark:bg-black border-b border-gray-200/50 dark:border-white/10" />
+                ) : (
+                    <div
+                        className="absolute top-0 left-0 right-0 h-28 pointer-events-none bg-gradient-to-b from-[#F2F2F7]/95 to-transparent dark:from-black/90 dark:to-transparent backdrop-blur-xl"
+                        style={{
+                            maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+                            WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)'
+                        }}
+                    />
+                )}
 
                 {/* Content Layer */}
                 <div className="relative h-[50px] flex items-center justify-between px-2 pt-[env(safe-area-inset-top)] box-content">
@@ -1235,6 +1358,51 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     visible={showMiniPlayer}
                     onClose={() => setShowMiniPlayer(false)}
                     conversationId={safeCid}
+                    onSwitchPlaylist={() => setShowMusicPicker(true)}
+                    onQuit={async () => {
+                        // 1. Send End Event Message
+                        await db.messengerMessages.add({
+                            conversationId: safeCid,
+                            conversationType: 'single',
+                            role: 'user',
+                            content: `结束了一起听`,
+                            msgType: 'event_music_change', // logic handling elsewhere will hide/show this? 
+                            // Actually, maybe we want this visible as a system notice, or AI trigger?
+                            // User wants: "Send 'End Listen Together' card -> Click send -> Notify API"
+                            // The prompt says: "Click 'End' -> Send 'End Listen Together' card in chat -> Click send button -> Notify API"
+                            // This implies user wants to manually send it? Or auto?
+                            // "Flow: Click End -> Send ... card ... -> Click send button"
+                            // Sounds like it prefills the input? 
+                            // But "Notify API" implies AI response.
+                            // I will implement: Auto-send a system/event message that triggers AI.
+                            // "event_music_change" is usually hidden.
+                            // Let's send a visible system message or user message?
+                            // "role: user, content: 结束了一起听" is fine.
+                            timestamp: Date.now()
+                        });
+
+                        // 2. Trigger AI Response (optional, but good for "Close loop")
+                        try {
+                            setIsTyping(true);
+                            // Build context including this new message
+                            const contextMsgs = await llmService.buildContext(characterId, safeCid, '结束了一起听', { historyLimit, replyCount });
+
+                            await llmService.sendMessageStream(contextMsgs,
+                                (delta) => { },
+                                (full) => {
+                                    db.messengerMessages.add({
+                                        conversationId: safeCid,
+                                        conversationType: 'single',
+                                        role: 'assistant',
+                                        content: full,
+                                        timestamp: Date.now()
+                                    });
+                                    setIsTyping(false);
+                                },
+                                () => setIsTyping(false)
+                            );
+                        } catch (e) { setIsTyping(false); }
+                    }}
                 />
 
                 {/* Messages List */}
@@ -1303,6 +1471,49 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                     )}
 
                                     <div
+                                        // Desktop: right-click context menu
+                                        onContextMenu={(e) => {
+                                            if (['gift', 'transfer', 'redpacket'].includes(msg.msgType)) return;
+                                            e.preventDefault(); triggerHaptic(); setSelectedMsg(msg.id);
+                                        }}
+                                        // Mobile: long-press detection via touch events
+                                        // Mobile: long-press detection via touch events
+                                        onTouchStart={(e) => {
+                                            if (['gift', 'transfer', 'redpacket'].includes(msg.msgType)) return;
+                                            const touch = e.touches[0];
+                                            longPressTimerRef.current = {
+                                                timer: setTimeout(() => {
+                                                    triggerHaptic();
+                                                    setSelectedMsg(msg.id);
+                                                }, 500), // 500ms long press threshold
+                                                startX: touch.clientX,
+                                                startY: touch.clientY
+                                            };
+                                        }}
+                                        onTouchEnd={() => {
+                                            if (longPressTimerRef.current?.timer) {
+                                                clearTimeout(longPressTimerRef.current.timer);
+                                                longPressTimerRef.current = null;
+                                            }
+                                        }}
+                                        onTouchMove={(e) => {
+                                            // Cancel long press only if moved significantly (>10px) to allow small jitter
+                                            if (longPressTimerRef.current?.timer) {
+                                                const touch = e.touches[0];
+                                                const moveX = Math.abs(touch.clientX - (longPressTimerRef.current.startX || 0));
+                                                const moveY = Math.abs(touch.clientY - (longPressTimerRef.current.startY || 0));
+                                                if (moveX > 10 || moveY > 10) {
+                                                    clearTimeout(longPressTimerRef.current.timer);
+                                                    longPressTimerRef.current = null;
+                                                }
+                                            }
+                                        }}
+                                        onClick={(e) => {
+                                            if (['gift', 'transfer', 'redpacket'].includes(msg.msgType)) return;
+                                            e.stopPropagation();
+                                            // Only CLOSE menu on click, not open - long press opens menu
+                                            if (selectedMsg === msg.id) setSelectedMsg(null);
+                                        }}
                                         // Pass index and all messages for Union Logic
                                         // V3: Pass true for isTransparent if split mode
                                         className={`${getBubbleStyle(msg, index, messages, translationMode.style === 'split' && msg.metadata?.translation && translationMode.enabled)} ${isText ? (msg.role === 'user' ? 'bubble-user-shadow' : 'bubble-ai-shadow') : ''}`}
@@ -1315,12 +1526,11 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                                             msg={msg}
                                             translationMode={{
                                                 ...translationMode,
-                                                enabled: translationMode.enabled && !['sticker', 'image', 'gift', 'transfer', 'redpacket', 'music_card', 'voice'].includes(msg.msgType)
+                                                // Disable for rich media types (they handle translation internally or don't need it)
+                                                enabled: translationMode.enabled && !['sticker', 'image', 'music_card', 'voice', 'gift', 'transfer', 'redpacket', 'card_response'].includes(msg.msgType)
                                             }}
                                             isUser={msg.role === 'user'}
                                             visualClass={getBubbleStyle(msg, index, messages, false)} // Always pass the FULL visual style to children
-                                            onContextMenu={(e) => { e.preventDefault(); triggerHaptic(); setSelectedMsg(msg.id); }}
-                                            onBubbleClick={(e) => { e.stopPropagation(); setSelectedMsg(selectedMsg === msg.id ? null : msg.id); }}
                                         >
                                             {renderBubbleContent(msg, index)}
                                         </BilingualSmartBubble>
@@ -1599,6 +1809,98 @@ const ChatDetail = ({ conversationId, characterId, onBack, onProfile, onSettings
                     />
                 )}
             </AnimatePresence>
+
+            {/* Card Interaction Modal - Premium Glass UI */}
+            {cardInteraction && createPortal(
+                <div
+                    className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
+                    onClick={() => setCardInteraction(null)}
+                >
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-black/40 backdrop-blur-md"
+                    />
+
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        className="relative w-full max-w-[320px] bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-2xl rounded-[32px] shadow-2xl overflow-hidden ring-1 ring-white/20 dark:ring-white/5"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Dynamic Theme Gradient Background */}
+                        {(() => {
+                            const type = cardInteraction.cardType;
+                            const themes = {
+                                redpacket: { bg: 'bg-gradient-to-br from-[#FF512F] to-[#DD2476]', shadow: 'shadow-red-500/40', icon: Wallet, label: '收到红包' },
+                                transfer: { bg: 'bg-gradient-to-br from-[#F09819] to-[#EDDE5D]', shadow: 'shadow-orange-500/40', icon: ArrowRightLeft, label: '收到转账' },
+                                gift: { bg: 'bg-gradient-to-br from-[#FF9A9E] to-[#FECFEF]', shadow: 'shadow-pink-500/40', icon: Gift, label: '收到礼物' }
+                            };
+                            const theme = themes[type] || themes.redpacket;
+                            const Icon = theme.icon;
+
+                            return (
+                                <>
+                                    {/* Top Ambient Glow */}
+                                    <div className={`absolute top-0 left-0 right-0 h-32 ${theme.bg} opacity-20 blur-3xl pointer-events-none`} />
+
+                                    <div className="relative flex flex-col items-center p-8 pb-6">
+                                        {/* Floating Icon */}
+                                        <motion.div
+                                            initial={{ rotate: -10, scale: 0.8 }}
+                                            animate={{ rotate: 0, scale: 1 }}
+                                            transition={{ type: "spring", delay: 0.1 }}
+                                            className={`w-20 h-20 rounded-[28px] ${theme.bg} flex items-center justify-center shadow-lg ${theme.shadow} mb-5 rotate-3`}
+                                        >
+                                            <Icon size={36} className="text-white drop-shadow-md" strokeWidth={2.5} />
+                                        </motion.div>
+
+                                        {/* Title */}
+                                        <h3 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight mb-2">
+                                            {type === 'transfer' ? `¥${parseFloat(cardInteraction.msg.metadata?.amount || '0').toLocaleString()}` : theme.label}
+                                        </h3>
+
+                                        {/* Subtitle / Note */}
+                                        <p className="text-[15px] font-medium text-gray-500 dark:text-gray-400 text-center leading-relaxed max-w-[90%]">
+                                            {cardInteraction.msg.metadata?.note || cardInteraction.msg.metadata?.giftName || `来自 ${character?.name || '好友'} 的心意`}
+                                        </p>
+
+                                        {type === 'transfer' && (
+                                            <span className="mt-1 text-xs text-gray-400">已存入零钱</span>
+                                        )}
+                                    </div>
+
+                                    {/* Buttons - Swapped Positions as Requested */}
+                                    <div className="p-4 pt-0 flex gap-3">
+                                        {/* Left: Accept (Primary) */}
+                                        <motion.button
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => handleCardResponse('accept')}
+                                            className={`flex-1 py-3.5 rounded-2xl font-bold text-white text-[15px] shadow-lg shadow-black/5 ${theme.bg} relative overflow-hidden group`}
+                                        >
+                                            <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            收下
+                                        </motion.button>
+
+                                        {/* Right: Reject (Secondary) */}
+                                        <motion.button
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => handleCardResponse('reject')}
+                                            className="flex-1 py-3.5 rounded-2xl font-bold text-[15px] text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+                                        >
+                                            退回
+                                        </motion.button>
+                                    </div>
+                                </>
+                            );
+                        })()}
+                    </motion.div>
+                </div>,
+                document.body
+            )}
 
         </motion.div >
     );
@@ -2676,6 +2978,7 @@ const StickerPanel = ({ onClose, onSelect, onBack }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
+
         </>
     );
 };

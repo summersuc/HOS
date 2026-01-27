@@ -38,11 +38,11 @@ const PhotoWidget = ({ settings, size = WIDGET_SIZES.SMALL }) => {
     }, [imageType, imagePayload]);
 
     return (
-        <WidgetBase variant="transparent" className="group overflow-visible flex items-center justify-center">
+        <WidgetBase variant="transparent" size={size} className="group overflow-visible flex items-center justify-center">
             <img
                 src={displayImage}
                 alt="Widget"
-                className="w-[150px] h-[150px] object-cover rounded-[22px] shadow-sm transition-transform duration-700 group-hover:scale-105"
+                className="w-full h-full object-cover rounded-[22px] shadow-sm transition-transform duration-700 group-hover:scale-105"
             />
         </WidgetBase>
     );

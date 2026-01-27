@@ -20,7 +20,7 @@ const Dock = ({ isEditing }) => {
         <div
             id="dock-area"
             ref={setNodeRef}
-            className="mx-auto mb-2 px-3 py-2 flex items-center justify-center bg-transparent h-[80px] w-fit min-w-[320px]"
+            className="mx-auto mb-0 px-3 py-2 flex items-center justify-center bg-transparent h-[80px] w-fit min-w-[320px]"
         >
             <div className="grid grid-cols-4 gap-2 w-full h-full max-w-[340px]">
                 <SortableContext items={dockApps} strategy={horizontalListSortingStrategy}>

@@ -1,6 +1,6 @@
 import Dexie from 'dexie';
 
-export const db = new Dexie('HoshinoOS_Pro');
+export const db = new Dexie('suki_pro');
 
 // Handle upgrade blocking
 db.on('versionchange', function (event) {
@@ -125,6 +125,25 @@ db.version(13).stores({
 // 数据库版本 14: 通用 Blob 存储 (Fix iOS Crash)
 db.version(14).stores({
     blobs: 'id, data, mimeType, createdAt'
+});
+
+// 数据库版本 15: 心动 App (Heartbeat - 沉浸式角色扮演)
+db.version(15).stores({
+    // 恋人表 (独立于 characters，但可从中导入)
+    lovers: '++id, name, avatar, appearance, personality, relationship, intimacy, currentScene, createdAt',
+    // 额外字段: userNickname, defaultScene, settings (json)
+
+    // 故事记录表 (替代 messengerMessages)
+    heartbeatStories: '++id, loverId, role, sceneId, timestamp',
+    // 额外字段: content, metadata
+
+    // 场景记忆表
+    heartbeatScenes: '++id, loverId, sceneName, description, lastUsed'
+});
+
+// 数据库版本 16: 心动 App 字段补全
+db.version(16).stores({
+    lovers: '++id, name, avatar, appearance, personality, relationship, description, firstMessage, intimacy, currentScene, createdAt'
 });
 
 // Database Auto-Repair Logic (PWA Corruption Handle)

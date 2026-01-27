@@ -18,9 +18,15 @@ const WidgetBase = ({
     children,
     className,
     variant = 'glass',
-    onClick
+    style,
+    onClick,
+    size // Optional: '2x2', '4x2', etc.
 }) => {
-    const baseStyles = "relative w-full h-full overflow-hidden transition-all duration-300";
+    // Force 162x162 for 2x2 widgets as per user request
+    const isSmall = size === '2x2';
+    const sizeStyle = isSmall ? { width: '162px', height: '162px' } : {};
+
+    const baseStyles = "relative overflow-hidden transition-all duration-300 mx-auto";
 
     const variants = {
         glass: "bg-white/60 dark:bg-black/30 backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-lg rounded-[22px]",
@@ -33,6 +39,7 @@ const WidgetBase = ({
         <motion.div
             className={clsx(baseStyles, variants[variant], className)}
             onClick={onClick}
+            style={{ ...sizeStyle, ...style }}
             whileTap={{ scale: 0.98 }}
         >
             {children}

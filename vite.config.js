@@ -18,9 +18,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'HoshinoOS',
-        short_name: 'HOS',
-        description: 'HoshinoOS PWA',
+        name: 'suki',
+        short_name: 'suki',
+        description: 'suki',
         theme_color: '#ffffff',
 
         // 🔥 这里的 / 是解决 404 的关键

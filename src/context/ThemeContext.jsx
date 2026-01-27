@@ -72,10 +72,10 @@ export const ThemeProvider = ({ children }) => {
         const oldStyle = document.getElementById('dynamic-font-style');
         if (oldStyle) oldStyle.remove();
 
-        let container = document.getElementById('hos-font-container');
+        let container = document.getElementById('suki-font-container');
         if (!container) {
             container = document.createElement('div');
-            container.id = 'hos-font-container';
+            container.id = 'suki-font-container';
             container.style.display = 'none';
             document.head.appendChild(container);
         }
@@ -133,6 +133,7 @@ export const ThemeProvider = ({ children }) => {
 
     // 2. UNIFIED LAYOUT (Apps & Widgets in 4x6 Grid)
     const [desktopApps, setDesktopApps] = useState([]);
+    const desktopAppsRef = React.useRef([]); // Ref for immediate access in async actions
     const [dockApps, setDockApps] = useState([]);
     const [widgets, setWidgets] = useState([]); // Compatibility
 
@@ -140,6 +141,11 @@ export const ThemeProvider = ({ children }) => {
         if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     };
+
+    // Sync Ref with State
+    useEffect(() => {
+        desktopAppsRef.current = desktopApps;
+    }, [desktopApps]);
 
     useEffect(() => {
         const loadLayout = async () => {
@@ -149,6 +155,14 @@ export const ThemeProvider = ({ children }) => {
                 let grid = new Array(GRID_SIZE).fill(null);
 
                 if (layout?.desktopApps && Array.isArray(layout.desktopApps)) {
+                    // Determine grid size based on saved data (Multiple of 24)
+                    const savedLen = layout.desktopApps.length;
+                    const PAGE_SIZE = 24;
+                    const totalSlots = Math.max(PAGE_SIZE, Math.ceil(savedLen / PAGE_SIZE) * PAGE_SIZE);
+
+                    // Resize grid to fit data
+                    grid = new Array(totalSlots).fill(null);
+
                     // 异步还原所有项 (Include Dedup)
                     const seenIds = new Set();
 
@@ -159,18 +173,25 @@ export const ThemeProvider = ({ children }) => {
                             seenIds.add(item.id);
 
                             // 从 widgets 表还原完整数据
-                            const widgetData = await db.widgets.get(item.id);
-                            if (widgetData) {
-                                return { ...widgetData, type: 'widget' }; // 标记为活跃组件
+                            try {
+                                const widgetData = await db.widgets.get(item.id);
+                                if (widgetData) {
+                                    return { ...widgetData, type: 'widget' }; // 标记为活跃组件
+                                } else {
+                                    console.warn(`Widget ${item.id} not found in DB, preserving ref`);
+                                    return item; // Keep the ref so we don't lose the slot in layout save
+                                }
+                            } catch (error) {
+                                console.error(`Failed to load widget ${item.id}`, error);
+                                return item; // On error, preserve ref
                             }
-                            return null; // 如果组件数据丢失，返回空位
                         }
                         return item; // App 字符串或 null 直接返回
                     }));
 
-                    // 填充到固定大小的网格中
+                    // 填充到网格中
                     restoredGrid.forEach((item, idx) => {
-                        if (idx < GRID_SIZE) grid[idx] = item;
+                        if (idx < grid.length) grid[idx] = item;
                     });
                 } else {
                     // 初始默认应用
@@ -243,11 +264,18 @@ export const ThemeProvider = ({ children }) => {
             if (type === 'desktop') {
                 const seenIds = new Set();
                 dataToSave = newOrder.map(item => {
-                    if (item && typeof item === 'object' && item.type === 'widget') {
-                        // 强制去重：如果该 ID 已经存过，则这个位置留空
-                        if (seenIds.has(item.id)) return null;
-                        seenIds.add(item.id);
-                        return { type: 'widgetRef', id: item.id };
+                    if (item && typeof item === 'object') {
+                        if (item.type === 'widget') {
+                            // 强制去重：如果该 ID 已经存过，则这个位置留空
+                            if (seenIds.has(item.id)) return null;
+                            seenIds.add(item.id);
+                            return { type: 'widgetRef', id: item.id };
+                        }
+                        if (item.type === 'widgetRef') {
+                            if (seenIds.has(item.id)) return null;
+                            seenIds.add(item.id);
+                            return item; // Already a ref, pass through
+                        }
                     }
                     return item;
                 });
@@ -300,7 +328,6 @@ export const ThemeProvider = ({ children }) => {
         };
 
         // 1. Calculate space first (Local state is most fresh for this)
-        const GRID_SIZE = 24;
         const occupied = new Set();
         desktopApps.forEach((item, idx) => {
             if (item && typeof item === 'object' && item.type === 'widget') {
@@ -319,31 +346,46 @@ export const ThemeProvider = ({ children }) => {
         }
 
         let targetIdx = -1;
-        for (let i = 0; i < GRID_SIZE; i++) {
+        // Search in existing pages
+        for (let i = 0; i < desktopApps.length; i++) {
             if (occupied.has(i)) continue;
             const slots = getOccupiedSlots(i, widgetWithId.size);
-            if (slots && slots.every(s => !occupied.has(s))) {
+            // Verify all needed slots are within current grid bounds AND empty
+            if (slots && slots.every(s => s < desktopApps.length && !occupied.has(s))) {
                 targetIdx = i;
                 break;
             }
         }
 
-        if (targetIdx === -1) {
-            alert('桌面空间不足，无法添加小组件');
-            return;
-        }
-
         // 2. Perform DB side effect
         try {
-            await db.widgets.add(widgetWithId);
+            await db.widgets.put(widgetWithId);
         } catch (e) {
             console.warn('Add Widget DB failed', e);
             throw e;
         }
 
-        // 3. One-shot update state & trigger layout save
-        const nextGrid = [...desktopApps];
-        nextGrid[targetIdx] = widgetWithId;
+        // 3. Update State & Layout
+        let nextGrid = [...desktopApps];
+
+        if (targetIdx !== -1) {
+            // Found spot in existing pages
+            nextGrid[targetIdx] = widgetWithId;
+        } else {
+            // No space found, extend grid by one page (24 slots)
+            const newPageStart = nextGrid.length;
+            const newPage = new Array(24).fill(null);
+            nextGrid = [...nextGrid, ...newPage];
+
+            // Place at start of new page
+            // Note: Since it's a new empty page, index 'newPageStart' is valid for top-left placement
+            // provided the widget fits in 4 cols (which max 4x4 does).
+            nextGrid[newPageStart] = widgetWithId;
+        }
+
+        // Optimistically update ref to prevent race conditions
+        desktopAppsRef.current = nextGrid;
+
         await saveLayout('desktop', nextGrid);
     };
 

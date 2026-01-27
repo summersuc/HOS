@@ -95,6 +95,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
     const [noPunctuation, setNoPunctuation] = useState(false);
     const [avatarMode, setAvatarMode] = useState('none');
     const [headerStyle, setHeaderStyle] = useState('standard');
+    const [solidHeader, setSolidHeader] = useState(false);
     const [translationMode, setTranslationMode] = useState({
         enabled: false,
         showOriginal: true,
@@ -144,6 +145,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
             if (conversation.proactiveDndEnd) setDndEnd(conversation.proactiveDndEnd);
             if (conversation.avatarMode) setAvatarMode(conversation.avatarMode);
             if (conversation.headerStyle) setHeaderStyle(conversation.headerStyle);
+            if (conversation.solidHeader !== undefined) setSolidHeader(conversation.solidHeader);
             if (conversation.translationMode) setTranslationMode({
                 ...translationMode,
                 ...conversation.translationMode
@@ -268,6 +270,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
             noPunctuation,
             avatarMode,
             headerStyle,
+            solidHeader,
             translationMode
         });
         triggerHaptic();
@@ -449,12 +452,12 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
 
             {/* Header Style */}
             <div className="bg-gray-50 dark:bg-black/20 rounded-xl p-3 space-y-3">
-                <ItemHeader icon={Layout} title="顶栏样式" subtitle="不仅是名字，更是心情" />
+                <ItemHeader icon={Layout} title="顶栏样式" subtitle="名字及头像显示" />
                 <div className="grid grid-cols-1 gap-2">
                     {[
                         { id: 'name_only', l: '简约文本', d: '只显示名字' },
                         { id: 'standard', l: '标准模式', d: '头像 + 名字 (默认)' },
-                        { id: 'immersive', l: '心动连线', d: 'AI头像 + 动态爱心 + 我的头像' }
+                        { id: 'immersive', l: '心动连线', d: '联系人头像 + 爱心 + 我的头像' }
                     ].map(m => (
                         <button key={m.id} onClick={() => { setHeaderStyle(m.id); triggerHaptic(); }} className={`flex items-center justify-between px-3 py-3 rounded-lg border transition-all ${headerStyle === m.id ? 'bg-blue-500 border-blue-500 text-white shadow-md' : 'bg-white dark:bg-gray-700 border-transparent text-gray-600 dark:text-gray-300'}`}>
                             <div className="flex flex-col items-start">
@@ -464,6 +467,19 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
                             {headerStyle === m.id && <div className="w-2 h-2 bg-white rounded-full shadow-sm" />}
                         </button>
                     ))}
+                </div>
+                {/* Sub-option: Solid Header Toggle */}
+                <div className="flex items-center justify-between pt-2 px-1 border-t border-gray-200 dark:border-white/5 mt-1">
+                    <div className="flex flex-col">
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-200">纯色顶栏</span>
+                        <span className="text-[10px] text-gray-400">开启后为纯色背景，无渐变效果</span>
+                    </div>
+                    <button
+                        onClick={() => { setSolidHeader(!solidHeader); triggerHaptic(); }}
+                        className={`w-10 h-6 rounded-full relative transition-colors ${solidHeader ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${solidHeader ? 'translate-x-4' : ''}`} />
+                    </button>
                 </div>
             </div>
             {/* Avatar */}
@@ -597,7 +613,7 @@ const ChatSettingsPage = ({ conversationId, characterId, onBack, onProfile }) =>
 
     return (
         <IOSPage title="聊天设置" onBack={onBack} rightButton={saveButton}>
-            <div className="min-h-full bg-gradient-to-br from-[#FAFAFA] to-[#F0F0F5] dark:from-[#1C1C1E] dark:to-[#0D0D0F] pb-[var(--sab)]">
+            <div className="min-h-full bg-gradient-to-br from-[#FAFAFA] to-[#F0F0F5] dark:from-black dark:to-black pb-[var(--sab)]">
                 <div className="p-5 space-y-6">
                     {/* Token Counter */}
                     <div className="flex items-center justify-between px-2">
