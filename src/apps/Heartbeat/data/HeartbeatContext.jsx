@@ -69,20 +69,85 @@ export const HeartbeatProvider = ({ children }) => {
 
     const [isTyping, setIsTyping] = useState(false);
 
-    // 从数据库实时查询恋人列表
-    const lovers = useLiveQuery(() => db.lovers?.toArray() || [], []);
+    // 从数据库实时查询恋人列表 + 自动同步Messenger角色
+    const loversData = useLiveQuery(() => db.lovers?.toArray() || [], []);
+    const charactersData = useLiveQuery(() => db.characters?.toArray() || [], []);
 
-    // 查询当前恋人
+    // 合并lovers和characters数据（按首字母排序）
+    const lovers = React.useMemo(() => {
+        const loversList = loversData || [];
+        const charactersList = charactersData || [];
+
+        // 已有的lover的sourceCharacterId集合
+        const importedCharacterIds = new Set(
+            loversList.filter(l => l.sourceCharacterId).map(l => l.sourceCharacterId)
+        );
+
+        // 将所有characters转换为虚拟lover（仅显示用，作为心动选手）
+        const virtualLovers = charactersList
+            .map(c => ({
+                id: `char_${c.id}`, // 虚拟ID
+                sourceCharacterId: c.id,
+                name: c.name,
+                avatar: c.avatar,
+                description: c.description || '',
+                personality: c.personality || '',
+                firstMessage: c.firstMessage || '',
+                relationship: c.relationship || '恋人',
+                intimacy: 0,
+                currentScene: 'cafe',
+                isVirtual: true, // 标记为虚拟
+            }));
+
+        // 合并并按首字母排序
+        const allLovers = [...loversList, ...virtualLovers];
+        return allLovers.sort((a, b) => {
+            const nameA = (a.name || '').toLowerCase();
+            const nameB = (b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB, 'zh-CN');
+        });
+    }, [loversData, charactersData]);
+
+    // 查询当前恋人（支持虚拟lover）
     const currentLover = useLiveQuery(
-        () => currentLoverId ? db.lovers?.get(currentLoverId) : null,
+        async () => {
+            if (!currentLoverId) return null;
+
+            // 如果是虚拟ID，从characters表获取
+            if (typeof currentLoverId === 'string' && currentLoverId.startsWith('char_')) {
+                const charId = parseInt(currentLoverId.replace('char_', ''));
+                const character = await db.characters?.get(charId);
+                if (character) {
+                    return {
+                        id: currentLoverId,
+                        sourceCharacterId: charId,
+                        name: character.name,
+                        avatar: character.avatar,
+                        description: character.description || '',
+                        personality: character.personality || '',
+                        firstMessage: character.firstMessage || '',
+                        relationship: character.relationship || '恋人',
+                        intimacy: 0,
+                        currentScene: 'cafe',
+                        isVirtual: true,
+                    };
+                }
+                return null;
+            }
+
+            return db.lovers?.get(currentLoverId);
+        },
         [currentLoverId]
     );
 
     // 查询当前恋人的故事记录
     const stories = useLiveQuery(
-        () => currentLoverId
-            ? db.heartbeatStories?.where('loverId').equals(currentLoverId).sortBy('timestamp')
-            : [],
+        () => {
+            if (!currentLoverId) return [];
+            // 虚拟lover暂无故事
+            if (typeof currentLoverId === 'string' && currentLoverId.startsWith('char_')) return [];
+            return db.heartbeatStories?.where('loverId').equals(currentLoverId).sortBy('timestamp');
+        },
         [currentLoverId]
     );
 
@@ -173,8 +238,21 @@ export const HeartbeatProvider = ({ children }) => {
         }
     };
 
-    // 从 Messenger 角色导入（API方法，非Editor使用）
+    // 从 Messenger 角色导入（API方法）
+    // 如果已存在对应的lover记录，直接返回其ID，不重复创建
     const importFromMessenger = async (characterId) => {
+        // 1. 检查是否已存在对应的lover记录
+        const existingLover = await db.lovers
+            ?.where('sourceCharacterId')
+            .equals(characterId)
+            .first();
+
+        if (existingLover) {
+            // 已存在，直接返回
+            return existingLover.id;
+        }
+
+        // 2. 不存在，从characters表获取数据并创建
         const character = await db.characters?.get(characterId);
         if (!character) return null;
 
@@ -182,12 +260,13 @@ export const HeartbeatProvider = ({ children }) => {
             name: character.name,
             avatar: character.avatar,
             personality: character.personality || '',
-            description: character.description || '', // 导入详细设定
-            firstMessage: character.firstMessage || '', // 导入开场白
+            description: character.description || '',
+            firstMessage: character.firstMessage || '',
             relationship: character.relationship || '恋人',
-            appearance: '', // 需要额外填写
-            userNickname: '你', // 默认称呼
-            defaultScene: 'cafe'
+            appearance: '',
+            userNickname: '你',
+            defaultScene: 'cafe',
+            sourceCharacterId: characterId, // 标记来源，用于去重
         });
 
         return loverId;
@@ -217,6 +296,15 @@ export const HeartbeatProvider = ({ children }) => {
         deleteStoriesAfter,
         importFromMessenger,
 
+        // 🔴 临时功能：清空所有心动数据
+        clearAllLovers: async () => {
+            await db.lovers?.clear();
+            await db.heartbeatStories?.clear();
+            setCurrentLoverId(null);
+            setCurrentPage('list');
+            console.log('✅ 已清空所有心动记录和故事数据！');
+        },
+
         // 设置
         setSettings,
         setIsTyping,
@@ -235,9 +323,7 @@ export const HeartbeatProvider = ({ children }) => {
 // Hook
 export const useHeartbeat = () => {
     const context = useContext(HeartbeatContext);
-    if (!context) {
-        throw new Error('useHeartbeat must be used within HeartbeatProvider');
-    }
+    // 允许返回 null，以便组件可以使用 props 作为 fallback
     return context;
 };
 

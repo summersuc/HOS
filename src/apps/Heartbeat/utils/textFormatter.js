@@ -25,9 +25,9 @@ export const renderStoryText = (text) => {
     // 3. 匹配动作 *...* (非贪婪)
     result = result.replace(/\*([^*]+)\*/g, '<span class="hb-action">$1</span>');
 
-    // 4. 匹配心理 （...） 或 (...)
-    result = result.replace(/（([^）]+)）/g, '<span class="hb-thought">（$1）</span>');
-    result = result.replace(/\(([^)]+)\)/g, '<span class="hb-thought">($1)</span>');
+    // 4. 匹配心理 （...） 或 (...) - 去掉括号，只显示内容
+    result = result.replace(/（([^）]+)）/g, '<span class="hb-thought">$1</span>');
+    result = result.replace(/\(([^)]+)\)/g, '<span class="hb-thought">$1</span>');
 
     // 5. 将换行转为 <br>
     result = result.replace(/\n/g, '<br>');

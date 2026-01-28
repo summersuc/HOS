@@ -1,37 +1,62 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { db } from '../../../db/schema';
-import { MapPin, Send, Settings, Bug, RotateCcw } from 'lucide-react';
+import { MapPin, Send, Bug, RotateCcw } from 'lucide-react';
 import { useHeartbeat, PRESET_SCENES } from '../data/HeartbeatContext';
 import { renderStoryText, extractPlainText } from '../utils/textFormatter';
-import { buildSystemPrompt, buildContext, formatUserInput } from '../data/promptTemplates';
+import { buildSystemPrompt, buildContext } from '../data/promptTemplates';
 import { llmService as LLMService } from '../../../services/LLMService';
 import { StoryView, BubbleView, ImmersiveView } from '../components/DisplayModes';
 import DebugLogModal from '../../Messenger/components/DebugLogModal';
+import { useTypewriter } from '../hooks/useTypewriter';
 
 /**
  * 角色扮演主场景 - 支持多种显示模式
+ * 优化：智能滚动、统一输入框、打字机效果
  */
-const StoryScene = () => {
+const StoryScene = (props) => {
+    const hbContext = useHeartbeat() || {};
     const {
-        currentLover,
-        currentLoverId,
-        stories,
-        settings,
-        isTyping,
-        setIsTyping,
-        setCurrentPage,
-        addStory,
-        switchScene,
-        adjustIntimacy,
-        deleteStoriesAfter,
-    } = useHeartbeat();
+        currentLover: contextLover,
+        currentLoverId: contextLoverId,
+        stories: contextStories,
+        settings: contextSettings,
+        isTyping: contextIsTyping,
+        setIsTyping: contextSetIsTyping,
+        setCurrentPage: contextSetPage,
+        addStory: contextAddStory,
+        switchScene: contextSwitchScene,
+        adjustIntimacy: contextAdjustIntimacy,
+        deleteStoriesAfter: contextDeleteStories,
+    } = hbContext;
+
+    // 优先使用 props 传入的值，作为 Context 丢失时的兜底
+    const currentLover = props.currentLover || contextLover;
+    const currentLoverId = props.currentLoverId || contextLoverId;
+    const stories = props.stories || contextStories;
+    const settings = props.settings || contextSettings || {};
+    const isTyping = props.isTyping !== undefined ? props.isTyping : contextIsTyping;
+    const setIsTyping = props.setIsTyping || contextSetIsTyping;
+    const setCurrentPage = props.setCurrentPage || contextSetPage;
+    const addStory = props.addStory || contextAddStory;
+    const switchScene = props.switchScene || contextSwitchScene;
+    const adjustIntimacy = props.adjustIntimacy || contextAdjustIntimacy;
+    const deleteStoriesAfter = props.deleteStoriesAfter || contextDeleteStories;
 
     const [input, setInput] = useState('');
     const [showScenePicker, setShowScenePicker] = useState(false);
-    const [streamingContent, setStreamingContent] = useState('');
+    const [rawStreamingContent, setRawStreamingContent] = useState('');
     const [showDebug, setShowDebug] = useState(false);
     const [debugInfo, setDebugInfo] = useState({ request: '', response: '' });
     const contentRef = useRef(null);
+    const textareaRef = useRef(null);
+    const isUserScrolledUpRef = useRef(false);
+
+    // 打字机效果 Hook
+    const displayedStreamingContent = useTypewriter(
+        rawStreamingContent,
+        settings.typewriterEffect,
+        settings.typewriterSpeed || 25
+    );
 
     // 获取当前场景 (支持自定义)
     const getScene = () => {
@@ -40,7 +65,6 @@ const StoryScene = () => {
 
         if (preset) return preset;
 
-        // 如果是自定义场景 (ID为 'custom' 或其他未定义ID但有自定义数据)
         if (sceneId === 'custom' || (!preset && currentLover?.customSceneName)) {
             return {
                 id: 'custom',
@@ -55,22 +79,65 @@ const StoryScene = () => {
 
     const currentScene = getScene();
 
-    // 自动滚动到底部
-    useEffect(() => {
-        if (contentRef.current) {
-            contentRef.current.scrollTop = contentRef.current.scrollHeight;
-        }
-    }, [stories, streamingContent]);
+    // 智能滚动：检测用户是否上滑
+    const handleScroll = useCallback(() => {
+        if (!contentRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = contentRef.current;
+        // 如果距离底部超过 100px，认为用户在往上看
+        isUserScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 100;
+    }, []);
 
-    // 发送消息
+    // 初次进入页面时强制滚动到最底部
+    useEffect(() => {
+        // 延迟执行确保DOM已渲染
+        const timer = setTimeout(() => {
+            if (contentRef.current) {
+                contentRef.current.scrollTop = contentRef.current.scrollHeight;
+                isUserScrolledUpRef.current = false;
+            }
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [currentLoverId]); // 切换角色时也重新滚动
+
+    const shouldScrollToBottomRef = useRef(false);
+
+    // 消息更新时，如果标记为需要滚动，则滚动到底部
+    useEffect(() => {
+        if (shouldScrollToBottomRef.current && contentRef.current) {
+            contentRef.current.scrollTop = contentRef.current.scrollHeight;
+            shouldScrollToBottomRef.current = false;
+        }
+    }, [stories]);
+
+    // 自动调整 textarea 高度
+    const adjustTextareaHeight = useCallback(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+    }, []);
+
+    useEffect(() => {
+        adjustTextareaHeight();
+    }, [input, adjustTextareaHeight]);
+
+    // 发送消息 - 直接发送原文，不再格式化
     const handleSend = async () => {
         if (!input.trim() || isTyping) return;
 
         const userInput = input.trim();
         setInput('');
+        // 重置 textarea 高度
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+        }
+        // 发送时标记需要滚动
+        shouldScrollToBottomRef.current = true;
+        isUserScrolledUpRef.current = false;
 
-        // 立即保存用户输入
-        await addStory(formatUserInput(userInput), 'user');
+        // 直接保存用户原文，不再调用 formatUserInput
+        await addStory(userInput, 'user');
 
         try {
             // 1. 获取 User Persona
@@ -79,15 +146,15 @@ const StoryScene = () => {
                 userPersona = await db.userPersonas.get(currentLover.userPersonaId);
             }
 
-            // 2. 获取 World Book Entries (简单策略：获取全局 + 绑定当前角色的所有条目)
+            // 2. 获取 World Book Entries
             const wbEntries = await db.worldBookEntries
                 .filter(e => e.enabled !== false && (e.isGlobal || e.characterId === currentLoverId))
                 .toArray();
 
-            // 3. 构建 Prompt (增强版)
+            // 3. 构建 Prompt
             const systemPrompt = buildSystemPrompt(currentLover, currentScene, settings, userPersona, wbEntries);
 
-            // 4. 获取历史记录（由 Context 控制）
+            // 4. 获取历史记录
             const limit = settings.historyLimit || 20;
             const history = (stories || []).slice(-limit);
 
@@ -99,7 +166,7 @@ const StoryScene = () => {
 
             // 开始流式生成
             setIsTyping(true);
-            setStreamingContent('');
+            setRawStreamingContent('');
 
             let fullContent = '';
 
@@ -108,7 +175,7 @@ const StoryScene = () => {
                     messages,
                     (chunk) => {
                         fullContent += chunk;
-                        setStreamingContent(fullContent);
+                        setRawStreamingContent(fullContent);
                     },
                     () => resolve(),
                     (err) => reject(err)
@@ -130,7 +197,7 @@ const StoryScene = () => {
             await addStory(`*${charName}似乎有些走神，没有回应你...*`, 'assistant');
         } finally {
             setIsTyping(false);
-            setStreamingContent('');
+            setRawStreamingContent('');
         }
     };
 
@@ -140,48 +207,31 @@ const StoryScene = () => {
         setShowScenePicker(false);
     };
 
-    // 快捷动作按钮
-    const handleQuickAction = (type) => {
-        switch (type) {
-            case 'action':
-                setInput(prev => `*${prev}*`);
-                break;
-            case 'dialogue':
-                setInput(prev => `"${prev}"`);
-                break;
-            case 'thought':
-                setInput(prev => `（${prev}）`);
-                break;
-        }
-    };
-
     // 撤回编辑逻辑
     const handleEditLastMessage = async () => {
-        // 找到最后一条用户消息
         const lastUserStory = [...stories].reverse().find(s => s.role === 'user');
         if (!lastUserStory) return;
 
-        // 填充输入框 (移除可能的格式标记，或者直接填充原始内容)
-        // 这里选择填充处理过的原始内容，去掉首尾的格式符号
-        let content = lastUserStory.content;
-        const plain = extractPlainText(content); // 需要从 textFormatter 导入，或者简单一点直接回填
-        // 考虑到用户可能想保留格式，直接回填 content
-        setInput(content);
-
-        // 删除该消息及之后的所有消息
+        setInput(lastUserStory.content);
         await deleteStoriesAfter(lastUserStory.timestamp);
     };
+
+    // 键盘事件处理 - 回车键正常换行，只有点击发送按钮才触发发送
+    // （已移除 Enter 发送逻辑，用户可以自由分行输入）
 
     // 渲染内容区（根据显示模式）
     const renderContentView = () => {
         const viewProps = {
             stories,
-            streamingContent,
+            streamingContent: displayedStreamingContent,
             isTyping,
             currentScene,
             loverName: currentLover?.name,
             loverAvatar: currentLover?.avatar,
-            contentRef: contentRef
+            userAvatar: null, // TODO: 从 userPersona 获取
+            contentRef,
+            onScroll: handleScroll,
+            settings,
         };
 
         switch (settings.displayMode) {
@@ -207,97 +257,45 @@ const StoryScene = () => {
                 response={debugInfo.response}
             />
 
-            {/* 场景标签（非沉浸模式显示） */}
-            {!isImmersive && (
-                <div
-                    className="hb-scene-badge"
-                    onClick={() => setShowScenePicker(!showScenePicker)}
-                    style={{ margin: '12px 16px 0' }}
-                >
-                    <MapPin size={14} />
-                    {currentScene.icon} {currentScene.name}
-                </div>
-            )}
-
-            {/* 场景选择器 */}
-            {showScenePicker && (
-                <div className="hb-scene-picker-dropdown">
-                    {PRESET_SCENES.map(scene => (
-                        <button
-                            key={scene.id}
-                            className={`hb-scene-option ${scene.id === currentLover?.currentScene ? 'active' : ''}`}
-                            onClick={() => handleSceneSwitch(scene.id)}
-                        >
-                            <span className="hb-scene-icon">{scene.icon}</span>
-                            <span className="hb-scene-name">{scene.name}</span>
-                        </button>
-                    ))}
-                    {/* 如果有自定义场景记录，允许切换回去 */}
-                    {currentLover?.customSceneName && (
-                        <button
-                            className={`hb-scene-option ${currentLover.currentScene === 'custom' ? 'active' : ''}`}
-                            onClick={() => handleSceneSwitch('custom')}
-                        >
-                            <span className="hb-scene-icon">✨</span>
-                            <span className="hb-scene-name">{currentLover.customSceneName}</span>
-                        </button>
-                    )}
-                </div>
-            )}
-
             {/* 内容区 */}
             {renderContentView()}
 
-            {/* 输入面板 */}
-            <div className={`hb-input-panel ${isImmersive ? 'hb-input-immersive' : ''}`}>
-                <div className="hb-input-row">
-                    <input
-                        type="text"
-                        className="hb-input-field"
+            {/* 悬浮输入面板 */}
+            <div className="hb-floating-input">
+                {/* 悬浮工具栏 (撤回/Debug) */}
+                <div className="hb-floating-toolbar">
+                    {stories?.length > 0 && !isTyping && (
+                        <button
+                            className="hb-toolbar-btn"
+                            onClick={handleEditLastMessage}
+                        >
+                            <RotateCcw size={16} />
+                        </button>
+                    )}
+                    <button
+                        className="hb-toolbar-btn"
+                        onClick={() => setShowDebug(true)}
+                    >
+                        <Bug size={16} />
+                    </button>
+                </div>
+
+                <div className="hb-input-wrapper">
+                    <textarea
+                        ref={textareaRef}
+                        className="hb-input-field hb-textarea-input"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="输入你的行动或对话..."
+                        placeholder="输入内容..."
+                        rows={1}
                     />
                     <button
-                        className="hb-send-btn"
+                        className="hb-send-btn-inline"
                         onClick={handleSend}
                         disabled={isTyping || !input.trim()}
                     >
                         <Send size={18} />
                     </button>
-                </div>
-
-                {/* 快捷动作 */}
-                <div className="hb-quick-actions">
-                    <button className="hb-quick-btn" onClick={() => handleQuickAction('action')}>🎭 动作</button>
-                    <button className="hb-quick-btn" onClick={() => handleQuickAction('dialogue')}>💬 对话</button>
-                    <button className="hb-quick-btn" onClick={() => handleQuickAction('thought')}>💭 内心</button>
-
-                    {/* Debug 按钮 */}
-                    <button
-                        className="hb-quick-btn"
-                        onClick={() => setShowDebug(true)}
-                        style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', border: 'none', color: '#999' }}
-                    >
-                        <Bug size={14} /> Debug
-                    </button>
-
-                    {/* 撤回编辑按钮 (当有历史记录且未在输入时显示) */}
-                    {stories?.length > 0 && !isTyping && (
-                        <button
-                            className="hb-quick-btn"
-                            onClick={handleEditLastMessage}
-                            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                        >
-                            <RotateCcw size={14} /> 撤回编辑
-                        </button>
-                    )}
-
-                    {isImmersive && (
-                        <button className="hb-quick-btn" onClick={() => setShowScenePicker(!showScenePicker)}>
-                            {currentScene.icon} 场景
-                        </button>
-                    )}
                 </div>
             </div>
         </div>

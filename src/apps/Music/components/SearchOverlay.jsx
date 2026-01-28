@@ -331,7 +331,7 @@ const SearchOverlay = ({
                                 } else if (isPlaylist || searchType === 1000) {
                                     // 确保 Playlist 点击生效
                                     if (onSelectPlaylist && item.id) {
-                                        onSelectPlaylist(item.id);
+                                        onSelectPlaylist(item.id, item);
                                     }
                                 }
                             }}

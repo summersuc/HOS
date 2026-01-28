@@ -144,8 +144,8 @@ const MusicApp = ({ onClose }) => {
         checkLoginStatus();
     }, []);
 
-    const handleSelectPlaylist = useCallback((id, initialData) => {
-        pushPage(`playlist-${id}`, 'playlist', { id, ...initialData });
+    const handleSelectPlaylist = useCallback((id, initialData, source = 'normal') => {
+        pushPage(`playlist-${id}`, 'playlist', { id, ...initialData, source });
     }, [pushPage]);
 
     // Unified Play Handler
@@ -359,45 +359,65 @@ const MusicApp = ({ onClose }) => {
                 onClose={onClose}
                 onBack={isRoot ? onClose : popPage} // Restore Swipe-to-Back/Close
                 hasHeader={false} // Fullscreen
+                enableSwipeBack={isRoot} // Only allow app-close swipe on root
             >
                 <div className="h-full bg-[#F5F5F7] dark:bg-black flex flex-col relative overflow-hidden text-gray-900 dark:text-white font-sans">
                     {!profile ? (
                         <LoginPage onLoginSuccess={handleLoginSuccess} />
                     ) : (
                         <>
-                            {/* Page Stack Rendering */}
+                            {/* Page Stack Rendering - Normal Pages */}
                             <div className="relative flex-1 w-full h-full overflow-hidden">
                                 <AnimatePresence initial={false}>
-                                    {pageStack.map((page, index) => (
-                                        <motion.div
-                                            key={page.id}
-                                            className="absolute inset-0 w-full h-full bg-[#F5F5F7] dark:bg-black shadow-2xl"
-                                            style={{ zIndex: index }}
-                                            initial={index === 0 ? false : { x: '100%' }}
-                                            animate={{ x: 0 }}
-                                            exit={{ x: '100%', zIndex: index + 1 }}
-                                            transition={{ type: "spring", stiffness: 300, damping: 30, mass: 0.8 }}
-                                        >
-                                            {renderPage(page, index)}
-                                        </motion.div>
-                                    ))}
+                                    {pageStack.map((page, index) => {
+                                        if (page.data?.source === 'search') return null;
+
+                                        // Root Page (Discovery) - Static Base Layer
+                                        if (index === 0) {
+                                            return (
+                                                <div
+                                                    key={page.id}
+                                                    className="absolute inset-0 w-full h-full bg-[#F5F5F7] dark:bg-black"
+                                                    style={{ zIndex: 0 }}
+                                                >
+                                                    {renderPage(page, index)}
+                                                </div>
+                                            );
+                                        }
+
+                                        // Sub Pages (Playlists) - Draggable IOSPage
+                                        return (
+                                            <IOSPage
+                                                key={page.id}
+                                                title={null}
+                                                onBack={popPage}
+                                                enableEnterAnimation={true}
+                                                hasHeader={false}
+                                                className="fixed inset-0 w-full h-full bg-[#F5F5F7] dark:bg-black shadow-2xl"
+                                                enableSwipeBack={true} // Enable swipe for internal navigation
+                                                style={{ zIndex: index }}
+                                            >
+                                                {renderPage(page, index)}
+                                            </IOSPage>
+                                        );
+                                    })}
                                 </AnimatePresence>
                             </div>
 
                             {/* Floating Bottom Tab Bar (Only on Root) */}
                             {isRoot && (
-                                <div className="absolute bottom-8 left-16 right-16 h-[56px] bg-white/5 dark:bg-white/5 backdrop-blur-2xl rounded-full flex items-center justify-around px-2 z-30 shadow-[0_8px_32px_rgba(0,0,0,0.1)] border border-white/10 animate-in fade-in slide-in-from-bottom-8 duration-500">
+                                <div className="absolute bottom-6 left-20 right-20 h-[46px] bg-white/20 dark:bg-white/5 backdrop-blur-2xl rounded-full flex items-center justify-around px-2 z-30 shadow-[0_8px_32px_rgba(0,0,0,0.1)] border border-white/20 animate-in fade-in slide-in-from-bottom-8 duration-500">
                                     <button
                                         onClick={() => setRootTab('discovery')}
-                                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full active:scale-90 transition-all ${rootTab === 'discovery' ? 'text-white bg-white/10' : 'text-[#888888] hover:text-white/50'}`}
+                                        className={`flex flex-col items-center justify-center w-10 h-10 rounded-full active:scale-90 transition-all ${rootTab === 'discovery' ? 'text-white bg-white/20' : 'text-[#888888] hover:text-white/50'}`}
                                     >
-                                        <Compass size={rootTab === 'discovery' ? 24 : 22} />
+                                        <Compass size={rootTab === 'discovery' ? 20 : 18} />
                                     </button>
                                     <button
                                         onClick={() => setRootTab('playlists')}
-                                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full active:scale-90 transition-all ${rootTab === 'playlists' ? 'text-white bg-white/10' : 'text-[#888888] hover:text-white/50'}`}
+                                        className={`flex flex-col items-center justify-center w-10 h-10 rounded-full active:scale-90 transition-all ${rootTab === 'playlists' ? 'text-white bg-white/20' : 'text-[#888888] hover:text-white/50'}`}
                                     >
-                                        <Library size={rootTab === 'playlists' ? 24 : 22} />
+                                        <Library size={rootTab === 'playlists' ? 20 : 18} />
                                     </button>
                                 </div>
                             )}
@@ -491,6 +511,7 @@ const MusicApp = ({ onClose }) => {
                 )}
                 {showSearch && (
                     <SearchOverlay
+                        key="search-overlay"
                         searchQuery={searchQuery}
                         setSearchQuery={setSearchQuery}
                         searchResults={searchResults}
@@ -504,9 +525,29 @@ const MusicApp = ({ onClose }) => {
                         onLoadMore={handleLoadMore}
                         onClose={handleSearchClose}
                         onPlaySong={handlePlaySong}
-                        onSelectPlaylist={handleSelectPlaylist}
+                        onSelectPlaylist={(id, data) => {
+                            handleSelectPlaylist(id, data, 'search');
+                            // setShowSearch(false); // Keep search open underneath
+                        }}
                     />
                 )}
+
+                {/* Page Stack Rendering - Search Spawned Pages (High priority, above SearchOverlay) */}
+                {pageStack.map((page, index) => {
+                    if (page.data?.source !== 'search') return null;
+                    return (
+                        <IOSPage
+                            key={page.id}
+                            title={null} // No internal header, SongListView handles it
+                            onBack={popPage}
+                            enableEnterAnimation={true}
+                            className="fixed inset-0 z-[60] w-full h-full bg-[#F5F5F7] dark:bg-black"
+                            hasHeader={false}
+                        >
+                            {renderPage(page, index)}
+                        </IOSPage>
+                    );
+                })}
             </AnimatePresence>
         </>
     );
@@ -520,7 +561,7 @@ const MiniPlayer = ({ track, isPlaying, progress, duration, onToggle, onNext, on
 
     return (
         <div
-            className={`absolute left-6 right-6 h-[64px] bg-black/30 dark:bg-black/30 backdrop-blur-2xl saturate-150 rounded-[32px] flex items-center pl-2 pr-4 justify-between z-30 shadow-[0_8px_32px_rgba(0,0,0,0.2)] animate-in fade-in slide-in-from-bottom-4 active:scale-[0.98] transition-all duration-300 border border-white/10 ring-1 ring-white/5 ${isWithTabs ? 'bottom-[90px]' : 'bottom-8'}`}
+            className={`absolute left-6 right-6 h-[64px] bg-white/30 dark:bg-white/10 backdrop-blur-2xl saturate-150 rounded-[32px] flex items-center pl-2 pr-4 justify-between z-30 shadow-[0_8px_32px_rgba(0,0,0,0.1)] animate-in fade-in slide-in-from-bottom-4 active:scale-[0.98] transition-all duration-300 border border-white/20 ring-1 ring-black/5 ${isWithTabs ? 'bottom-[80px]' : 'bottom-8'}`}
             onClick={(e) => {
                 // Prevent click when clicking controls
                 if (e.target.closest('button')) return;
@@ -535,25 +576,25 @@ const MiniPlayer = ({ track, isPlaying, progress, duration, onToggle, onNext, on
 
             {/* Info */}
             <div className="flex-1 min-w-0 mx-3 flex flex-col justify-center">
-                <span className="text-[14px] font-bold text-white truncate">{track.name}</span>
-                <span className="text-[11px] text-white/50 truncate">{track.ar?.[0]?.name} - {track.al?.name}</span>
+                <span className="text-[14px] font-bold text-[#747678] dark:text-white truncate">{track.name}</span>
+                <span className="text-[11px] text-[#747678]/70 dark:text-white/50 truncate">{track.ar?.[0]?.name} - {track.al?.name}</span>
             </div>
 
             {/* Controls */}
             <div className="flex items-center space-x-3">
-                <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className="w-9 h-9 flex items-center justify-center rounded-full bg-white text-black active:scale-90 transition-transform shadow-lg shadow-white/10">
+                <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className="w-9 h-9 flex items-center justify-center rounded-full bg-[#747678] text-white active:scale-90 transition-transform shadow-lg shadow-[#747678]/20 dark:bg-white dark:text-black">
                     {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
                 </button>
                 {onNext && (
-                    <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="text-white/80 active:scale-90 transition-transform active:text-white">
+                    <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="text-[#747678]/80 dark:text-white/80 active:scale-90 transition-transform active:text-[#747678] dark:active:text-white">
                         <SkipForward size={24} fill="currentColor" />
                     </button>
                 )}
             </div>
 
             {/* Progress Bar (Bottom Line) */}
-            <div className="absolute bottom-0 left-6 right-6 h-[2px] bg-white/10 rounded-full overflow-hidden">
-                <div className="absolute inset-0 h-full bg-white/80 rounded-full" style={{ width: `${percent}%` }} />
+            <div className="absolute bottom-0 left-6 right-6 h-[2px] bg-[#747678]/10 dark:bg-white/10 rounded-full overflow-hidden">
+                <div className="absolute inset-0 h-full bg-[#747678]/80 dark:bg-white/80 rounded-full" style={{ width: `${percent}%` }} />
             </div>
         </div>
     );

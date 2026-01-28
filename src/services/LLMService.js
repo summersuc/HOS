@@ -357,7 +357,7 @@ ${timeContext}
 
 [MANDATORY OUTPUT RULES]
 1. FORMAT: Text ONLY. NO actions (*hugs*). NO thoughts ((thinking...)).
-2. EXPRESSION: Text, Emojis, Kaomoji${stickerPrompt ? ', and Stickers from the list below' : ''}.
+2. EXPRESSION: Text, Emojis, Kaomoji${stickerPrompt ? ', and Stickers from the list below' : ' ONLY. Stickers NOT available.'}.
 3. REPLY STRUCTURE (MUST FOLLOW):
    - You MUST output ${String(replyCount).includes('-') ? 'BETWEEN' : 'EXACTLY'} ${replyDisplay} separate message bubbles.
    - Each bubble MUST be under 80 Chinese characters or 150 English characters.
@@ -380,8 +380,7 @@ ${stickerPrompt ? stickerPrompt + '\n' : ''}${noPunctuation ? '4. NO PUNCTUATION
 - [User sent Red Packet: ...]: React to money/luck.
 
 [Commands] - MUST be on their own line, NO extra text after!
-- STICKER: [Sticker: Name]
-- VOICE: [Voice: Content${options.translationMode?.enabled ? '（翻译）' : ''}]
+${stickerPrompt ? '- STICKER: [Sticker: Name]\n' : ''}- VOICE: [Voice: Content${options.translationMode?.enabled ? '（翻译）' : ''}]
 - RED PACKET: [RedPacket: Amount, Note${options.translationMode?.enabled ? '（翻译）' : ''}]
 - TRANSFER: [Transfer: Amount, Note${options.translationMode?.enabled ? '（翻译）' : ''}]
 - GIFT: [Gift: Name${options.translationMode?.enabled ? '（翻译）' : ''}]

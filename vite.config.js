@@ -17,6 +17,20 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+
+      // 🔒 Kill Switch 缓存配置 - 确保控制 API 不被缓存
+      workbox: {
+        // 排除 /api/ 路径从导航回退
+        navigateFallbackDenylist: [/^\/api\//],
+        // 运行时缓存策略 - Kill Switch 永远走网络
+        runtimeCaching: [
+          {
+            urlPattern: /\/api\/status\.json$/,
+            handler: 'NetworkOnly',  // 强制走网络，不缓存
+          }
+        ]
+      },
+
       manifest: {
         name: 'suki',
         short_name: 'suki',

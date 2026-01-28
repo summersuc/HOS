@@ -560,12 +560,12 @@ const Desktop = () => {
             collisionDetection={rectIntersection}
             measuring={{
                 droppable: {
-                    strategy: MeasuringStrategy.Always
+                    strategy: MeasuringStrategy.WhileDragging
                 }
             }}
             autoScroll={{
-                threshold: { x: 0.05, y: 0.05 }, // 5% threshold is much safer
-                acceleration: 5 // Slower, smoother scroll
+                threshold: { x: 0.05, y: 0.05 },
+                acceleration: 5
             }}
             onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}
         >
@@ -583,36 +583,61 @@ const Desktop = () => {
                 <AnimatePresence>
                     {isEditing && (
                         <>
-                            {/* Add Page Button (Left) */}
-                            <motion.button
-                                initial={{ opacity: 0, x: -20, scale: 0.9 }}
-                                animate={{ opacity: 1, x: 0, scale: 1 }}
-                                exit={{ opacity: 0, x: -20, scale: 0.9 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                onClick={() => {
-                                    setDesktopApps(prev => [...prev, ...new Array(24).fill(null)]);
-                                    // Smooth scroll to the new page
-                                    setTimeout(() => {
-                                        const container = document.getElementById('grid-container');
-                                        if (container) container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
-                                    }, 100);
-                                }}
-                                className="absolute top-12 left-6 z-50 bg-[#333333] hover:bg-[#444444] text-white w-8 h-8 rounded-lg flex items-center justify-center shadow-lg active:scale-95 transition-colors"
-                            >
-                                <Plus size={18} strokeWidth={2.5} />
-                            </motion.button>
-
-                            {/* Done Button (Right) */}
-                            <motion.button
-                                initial={{ opacity: 0, y: -20, scale: 0.9 }}
+                            {/* Bottom Edit Control Bar */}
+                            <motion.div
+                                initial={{ opacity: 0, y: 20, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                onClick={() => setIsEditing(false)}
-                                className="absolute top-12 right-6 z-50 bg-[#333333] hover:bg-[#444444] text-white px-4 py-1.5 rounded-lg text-xs font-semibold shadow-lg active:scale-95 transition-colors"
+                                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                className="absolute bottom-[100px] left-0 right-0 z-50 flex justify-center items-center pointer-events-none"
                             >
-                                完成
-                            </motion.button>
+                                <div className="flex items-center space-x-4 pointer-events-auto">
+                                    {/* Add Page Button */}
+                                    <button
+                                        onClick={() => {
+                                            setDesktopApps(prev => [...prev, ...new Array(24).fill(null)]);
+                                            setTimeout(() => {
+                                                const container = document.getElementById('grid-container');
+                                                if (container) container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+                                            }, 100);
+                                        }}
+                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white shadow-lg active:scale-90 transition-all hover:bg-white/30"
+                                    >
+                                        <Plus size={20} strokeWidth={2.5} />
+                                    </button>
+
+
+
+                                    {/* Done Button */}
+                                    <button
+                                        onClick={() => {
+                                            // --- Auto-Trim Empty Pages Logic ---
+                                            setDesktopApps(prev => {
+                                                // Find last non-null index
+                                                let lastIdx = -1;
+                                                for (let i = prev.length - 1; i >= 0; i--) {
+                                                    if (prev[i] !== null) {
+                                                        lastIdx = i;
+                                                        break;
+                                                    }
+                                                }
+                                                // Calculate required pages (min 1)
+                                                const requiredLength = Math.max(1, Math.ceil((lastIdx + 1) / 24)) * 24;
+                                                // If current length is greater, trim it
+                                                if (prev.length > requiredLength) {
+                                                    return prev.slice(0, requiredLength);
+                                                }
+                                                return prev;
+                                            });
+                                            setIsEditing(false);
+                                            setIsLayoutDirty(true); // Force save after trim
+                                        }}
+                                        className="h-10 px-6 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold text-sm shadow-lg active:scale-95 transition-all hover:bg-white/30"
+                                    >
+                                        完成
+                                    </button>
+                                </div>
+                            </motion.div>
                         </>
                     )}
                 </AnimatePresence>
@@ -653,17 +678,8 @@ const Desktop = () => {
                     )}
                 </SortableContext>
 
-                {/* Empty State Recovery */}
-                {desktopApps.every(i => i === null) && !isEditing && (
-                    <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); resetToDefaults(); }}
-                            className="pointer-events-auto bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 text-white px-6 py-3 rounded-full font-medium shadow-lg transition-all active:scale-95"
-                        >
-                            恢复默认布局
-                        </button>
-                    </div>
-                )}
+                {/* Spacer to push Dock */}
+                <div className="flex-1" />
 
                 {/* Spacer to push Dock */}
                 <div className="flex-1" />

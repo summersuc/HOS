@@ -146,6 +146,11 @@ db.version(16).stores({
     lovers: '++id, name, avatar, appearance, personality, relationship, description, firstMessage, intimacy, currentScene, createdAt'
 });
 
+// 数据库版本 17: 修复 Heartbeat 索引 (sourceCharacterId)
+db.version(17).stores({
+    lovers: '++id, sourceCharacterId, name, avatar, appearance, personality, relationship, description, firstMessage, intimacy, currentScene, createdAt'
+});
+
 // Database Auto-Repair Logic (PWA Corruption Handle)
 db.open().catch(async (err) => {
     console.error('Database Open Failed:', err);

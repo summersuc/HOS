@@ -379,7 +379,10 @@ const DiscoveryView = memo(({ userId, onSelectPlaylist, onPlaySong, onOpenSearch
             <div className="px-4 pb-4">
                 <div className="flex items-center justify-between mb-3 px-1">
                     <h3 className="font-bold text-gray-900 dark:text-white text-base">猜你喜欢</h3>
-                    <div className="px-2 py-1 rounded-full border border-gray-200 dark:border-white/10 text-[10px] font-bold text-gray-500 flex items-center cursor-pointer">
+                    <div
+                        onClick={() => handlePlayList(todaySongs)}
+                        className="px-2 py-1 rounded-full border border-gray-200 dark:border-white/10 text-[10px] font-bold text-gray-500 flex items-center cursor-pointer active:bg-gray-100 dark:active:bg-white/10 transition-colors"
+                    >
                         播放全部 <ChevronRight size={10} />
                     </div>
                 </div>

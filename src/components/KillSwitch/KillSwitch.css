@@ -1,0 +1,137 @@
+/* Kill Switch 样式 */
+
+/* 基础容器 */
+.kill-switch-loading,
+.kill-switch-disabled {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    z-index: 99999;
+    padding: 20px;
+    text-align: center;
+}
+
+/* 加载动画 */
+.kill-switch-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: kill-switch-spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes kill-switch-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.kill-switch-loading-text {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
+}
+
+/* 禁用状态 */
+.kill-switch-icon {
+    font-size: 64px;
+    margin-bottom: 24px;
+    animation: kill-switch-pulse 2s ease-in-out infinite;
+}
+
+@keyframes kill-switch-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+.kill-switch-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 16px;
+    background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.kill-switch-message {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 32px;
+    max-width: 300px;
+    line-height: 1.5;
+}
+
+.kill-switch-retry-btn {
+    padding: 14px 32px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a2e;
+    background: linear-gradient(135deg, #fff 0%, #e2e8f0 100%);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.kill-switch-retry-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.kill-switch-retry-btn:active {
+    transform: translateY(0);
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: light) {
+
+    .kill-switch-loading,
+    .kill-switch-disabled {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 50%, #cbd5e1 100%);
+        color: #1e293b;
+    }
+
+    .kill-switch-spinner {
+        border-color: rgba(30, 41, 59, 0.1);
+        border-top-color: #1e293b;
+    }
+
+    .kill-switch-loading-text {
+        color: rgba(30, 41, 59, 0.7);
+    }
+
+    .kill-switch-title {
+        background: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .kill-switch-message {
+        color: rgba(30, 41, 59, 0.6);
+    }
+
+    .kill-switch-retry-btn {
+        color: #fff;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    }
+}

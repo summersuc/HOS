@@ -1,26 +1,35 @@
 import { useState, useEffect } from 'react';
 
-const STORAGE_KEY = 'hos_listen_together_mode';
+const STORAGE_KEY = 'hos_listen_together_cid'; // Changed to store ID
 
 export const useListenTogether = () => {
-    const [isEnabled, setIsEnabled] = useState(() => {
-        return localStorage.getItem(STORAGE_KEY) === 'true';
+    const [activeId, setActiveId] = useState(() => {
+        const val = localStorage.getItem(STORAGE_KEY);
+        // Only return if valid ID (number or string)
+        if (!val || val === 'null' || val === 'false') return null;
+        const num = parseInt(val);
+        return isNaN(num) ? val : num;
     });
+
+    // Derived state for backward compatibility or simple checks
+    const isEnabled = activeId !== null && activeId !== undefined;
 
     useEffect(() => {
         const handleStorageChange = (e) => {
             if (e.key === STORAGE_KEY) {
-                setIsEnabled(e.newValue === 'true');
+                const val = e.newValue;
+                if (!val || val === 'null' || val === 'false') {
+                    setActiveId(null);
+                } else {
+                    const num = parseInt(val);
+                    setActiveId(isNaN(num) ? val : num);
+                }
             }
         };
 
-        // Poll for local changes (if in same window/tab but diff component)
-        // or rely on storage event for cross-tab. 
-        // For same-tab cross-component, we might need a custom event or just window event.
-        // Let's use a custom event dispatcher helper.
-
         const handleCustomEvent = (e) => {
-            setIsEnabled(e.detail);
+            // detail should be the ID
+            setActiveId(e.detail);
         };
 
         window.addEventListener('storage', handleStorageChange);
@@ -32,20 +41,23 @@ export const useListenTogether = () => {
         };
     }, []);
 
-    const toggle = () => {
-        const newValue = !isEnabled;
-        setIsEnabled(newValue);
-        localStorage.setItem(STORAGE_KEY, String(newValue));
-
-        // Dispatch local event for immediate UI update in other components
-        window.dispatchEvent(new CustomEvent('suki-listen-together-change', { detail: newValue }));
+    const start = (cid) => {
+        setActiveId(cid);
+        localStorage.setItem(STORAGE_KEY, String(cid));
+        window.dispatchEvent(new CustomEvent('suki-listen-together-change', { detail: cid }));
     };
 
-    const set = (value) => {
-        setIsEnabled(value);
-        localStorage.setItem(STORAGE_KEY, String(value));
-        window.dispatchEvent(new CustomEvent('suki-listen-together-change', { detail: value }));
-    }
+    const stop = () => {
+        setActiveId(null);
+        localStorage.removeItem(STORAGE_KEY);
+        window.dispatchEvent(new CustomEvent('suki-listen-together-change', { detail: null }));
+    };
 
-    return { isEnabled, toggle, set };
+    // Helper to toggle (rarely used now, logic questionable)
+    const toggle = (cid) => {
+        if (isEnabled) stop();
+        else start(cid);
+    };
+
+    return { activeId, isEnabled, start, stop, toggle };
 };

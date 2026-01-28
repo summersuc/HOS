@@ -1,24 +1,119 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useHeartbeat } from '../data/HeartbeatContext';
 import { db } from '../../../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { storageService } from '../../../services/StorageService';
-import { Edit, UserCheck, Check, User } from 'lucide-react';
+import { triggerHaptic } from '../../../utils/haptics';
+import {
+    Edit, UserCheck, Check, User, ChevronDown,
+    Heart, Palette, Settings, Sparkles, Type, History, Zap
+} from 'lucide-react';
+
+// --- 折叠式 Section 组件 (参考 Messenger ChatSettingsPage) ---
+const Section = ({ id, label, icon: Icon, expandedSection, toggleSection, children }) => {
+    const isOpen = expandedSection === id;
+    return (
+        <div className="bg-white dark:bg-[#2C2C2E] rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-white/5 transition-all">
+            <button
+                onClick={() => toggleSection(id)}
+                className="w-full flex items-center gap-4 p-4 active:bg-gray-50 dark:active:bg-white/5 transition-colors"
+            >
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #B29E8F, #C7D2D7)' }}>
+                    <Icon size={18} className="text-white" strokeWidth={2} />
+                </div>
+                <span className="flex-1 text-left font-semibold text-[15px] text-gray-900 dark:text-white">{label}</span>
+                <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.3, type: "spring", stiffness: 200, damping: 20 }}>
+                    <ChevronDown size={18} className="text-gray-300" />
+                </motion.div>
+            </button>
+            <AnimatePresence initial={false}>
+                {isOpen && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                    >
+                        <div className="px-4 pb-4">
+                            {children}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+// --- 精美开关组件 ---
+const Switch = ({ checked, onChange, color = 'pink' }) => {
+    const colors = {
+        pink: 'bg-pink-500',
+        purple: 'bg-purple-500',
+        blue: 'bg-blue-500'
+    };
+    return (
+        <button
+            onClick={() => { triggerHaptic(); onChange(!checked); }}
+            className={`w-11 h-6 rounded-full relative transition-colors duration-200 ${checked ? colors[color] : 'bg-gray-300 dark:bg-gray-600'}`}
+        >
+            <motion.div
+                className="absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm"
+                animate={{ x: checked ? 20 : 0 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+        </button>
+    );
+};
+
+// --- 按钮组组件 ---
+const ButtonGroup = ({ options, value, onChange }) => (
+    <div className="grid grid-cols-3 gap-2">
+        {options.map(opt => (
+            <button
+                key={opt.id}
+                onClick={() => { triggerHaptic(); onChange(opt.id); }}
+                className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${value === opt.id
+                    ? 'bg-[#B29E8F] text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                    }`}
+            >
+                {opt.label}
+            </button>
+        ))}
+    </div>
+);
 
 /**
- * 心动设置页（已移除header，由父级IOSPage提供）
+ * 心动设置页（优化后）
  */
-const HeartbeatSettings = () => {
+const HeartbeatSettings = (props) => {
+    const hbContext = useHeartbeat() || {};
     const {
-        settings,
-        setSettings,
-        currentLover,
-        currentLoverId,
-        updateLover,
-        setCurrentPage,
-    } = useHeartbeat();
+        settings: contextSettings,
+        setSettings: contextSetSettings,
+        currentLover: contextLover,
+        currentLoverId: contextLoverId,
+        updateLover: contextUpdateLover,
+        setCurrentPage: contextSetPage,
+    } = hbContext;
+
+    // 优先使用 props 传入的值
+    const settings = props.settings || contextSettings || {};
+    const setSettings = props.setSettings || contextSetSettings;
+    const currentLover = props.currentLover || contextLover;
+    const currentLoverId = props.currentLoverId || contextLoverId;
+    const updateLover = props.updateLover || contextUpdateLover;
+    const setCurrentPage = props.setCurrentPage || contextSetPage;
 
     const allPersonas = useLiveQuery(() => db.userPersonas.toArray()) || [];
+    const [expandedSection, setExpandedSection] = useState('display');
+
+    const toggleSection = (id) => {
+        triggerHaptic();
+        setExpandedSection(prev => prev === id ? null : id);
+    };
 
     const updateSetting = (key, value) => {
         setSettings(prev => ({ ...prev, [key]: value }));
@@ -27,9 +122,10 @@ const HeartbeatSettings = () => {
     // 处理用户人设选择
     const handleSelectPersona = async (persona) => {
         if (!currentLoverId) return;
+        triggerHaptic();
         await updateLover(currentLoverId, {
             userPersonaId: persona.id,
-            userNickname: persona.userName || persona.name // 同步更新昵称
+            userNickname: persona.userName || persona.name
         });
     };
 
@@ -48,42 +144,228 @@ const HeartbeatSettings = () => {
         return null;
     };
 
-    return (
-        <div className="hb-settings-page pb-safe">
-            <div className="hb-settings-list space-y-6">
+    // --- 渲染各 Section 内容 ---
 
-                {/* 1. 当前角色编辑 */}
+    // 显示与模式
+    const renderDisplaySection = () => (
+        <div className="space-y-4">
+            {/* 显示模式 */}
+            <div className="space-y-2">
+                <span className="text-xs font-medium text-gray-500">显示模式</span>
+                <ButtonGroup
+                    options={[
+                        { id: 'story', label: '阅读' },
+                        { id: 'bubble', label: '气泡' },
+                        { id: 'immersive', label: '沉浸' },
+                    ]}
+                    value={settings.displayMode}
+                    onChange={(v) => updateSetting('displayMode', v)}
+                />
+            </div>
+
+            {/* 角色人称 */}
+            <div className="space-y-2">
+                <span className="text-xs font-medium text-gray-500">角色人称 (AI自称)</span>
+                <ButtonGroup
+                    options={[
+                        { id: 'first', label: '我' },
+                        { id: 'third', label: '人物名字' },
+                    ]}
+                    value={settings.charPerspective}
+                    onChange={(v) => updateSetting('charPerspective', v)}
+                />
+            </div>
+
+            {/* 用户人称 */}
+            <div className="space-y-2">
+                <span className="text-xs font-medium text-gray-500">你的人称 (AI称呼你)</span>
+                <ButtonGroup
+                    options={[
+                        { id: 'second', label: '你' },
+                        { id: 'third', label: '你的名字' },
+                    ]}
+                    value={settings.userPerspective}
+                    onChange={(v) => updateSetting('userPerspective', v)}
+                />
+            </div>
+        </div>
+    );
+
+    // 输出控制
+    const renderOutputSection = () => (
+        <div className="space-y-4">
+            {/* 输出字数 */}
+            <div className="bg-gray-50 dark:bg-black/20 rounded-xl p-3 space-y-2">
+                <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">输出字数</span>
+                    <span className="text-sm font-bold text-pink-500">{settings.outputLength || 300}</span>
+                </div>
+                <input
+                    type="range"
+                    min="50"
+                    max="1000"
+                    step="50"
+                    value={settings.outputLength || 300}
+                    onChange={(e) => updateSetting('outputLength', parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                />
+                <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>50 (简短)</span>
+                    <span>1000 (详细)</span>
+                </div>
+            </div>
+
+            {/* 记忆深度 */}
+            <div className="bg-gray-50 dark:bg-black/20 rounded-xl p-3 space-y-2">
+                <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">记忆深度</span>
+                    <span className="text-sm font-bold text-purple-500">{settings.historyLimit || 20}条</span>
+                </div>
+                <input
+                    type="range"
+                    min="5"
+                    max="100"
+                    step="5"
+                    value={settings.historyLimit || 20}
+                    onChange={(e) => updateSetting('historyLimit', parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
+                <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>5 (节省)</span>
+                    <span>100 (深度)</span>
+                </div>
+            </div>
+        </div>
+    );
+
+    // 效果开关
+    const renderEffectsSection = () => (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between py-2">
+                <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">打字机效果</span>
+                    <span className="text-[10px] text-gray-400">逐字显示 AI 回复</span>
+                </div>
+                <Switch checked={settings.typewriterEffect} onChange={(v) => updateSetting('typewriterEffect', v)} />
+            </div>
+            <div className="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">场景音效</span>
+                    <span className="text-[10px] text-gray-400">播放环境背景音</span>
+                </div>
+                <Switch checked={settings.soundEffect} onChange={(v) => updateSetting('soundEffect', v)} color="purple" />
+            </div>
+            <div className="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">自动续写</span>
+                    <span className="text-[10px] text-gray-400">AI 自动推进剧情</span>
+                </div>
+                <Switch checked={settings.autoConversation} onChange={(v) => updateSetting('autoConversation', v)} color="blue" />
+            </div>
+        </div>
+    );
+
+    // 个性化颜色
+    const renderColorsSection = () => (
+        <div className="space-y-3">
+            {[
+                { key: 'primary', label: '主题色', desc: '名字/重点', default: '#FF6B8A' },
+                { key: 'action', label: '动作色', desc: '*动作描写*', default: '#FF8C69' },
+                { key: 'thought', label: '心理色', desc: '内心想法', default: '#888888' },
+                { key: 'text', label: '正文色', desc: '普通对话', default: '#333333' },
+            ].map((item, idx) => (
+                <div key={item.key} className={`flex items-center justify-between py-2 ${idx > 0 ? 'border-t border-gray-100 dark:border-white/5' : ''}`}>
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full" style={{ backgroundColor: settings.colors?.[item.key] || item.default }} />
+                        <div className="flex flex-col">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{item.label}</span>
+                            <span className="text-[10px] text-gray-400">{item.desc}</span>
+                        </div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-white/10 relative">
+                        <input
+                            type="color"
+                            value={settings.colors?.[item.key] || item.default}
+                            onChange={(e) => { triggerHaptic(); updateSetting('colors', { ...settings.colors, [item.key]: e.target.value }); }}
+                            className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 border-0"
+                        />
+                    </div>
+                </div>
+            ))}
+            <button
+                className="w-full py-2.5 text-sm text-center text-gray-400 hover:text-pink-500 active:bg-gray-50 dark:active:bg-white/5 rounded-xl transition-colors"
+                onClick={() => {
+                    triggerHaptic();
+                    updateSetting('colors', { primary: '#FF6B8A', action: '#FF8C69', thought: '#888888', text: '#333333' });
+                }}
+            >
+                恢复默认颜色
+            </button>
+        </div>
+    );
+
+    return (
+        <div className="min-h-full" style={{ background: '#DFE5EA', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
+            <div className="p-4 space-y-4">
+
+                {/* 当前角色卡片 */}
                 {currentLover && (
-                    <div className="space-y-2">
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2">当前角色</div>
-                        <div
-                            className="bg-white dark:bg-white/5 p-4 rounded-2xl flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform shadow-sm"
-                            onClick={() => setCurrentPage('editor')}
-                        >
-                            <img
-                                src={getAvatarUrl(currentLover.avatar)}
-                                className="w-12 h-12 rounded-full object-cover border-2 border-pink-100 dark:border-pink-900"
-                                onError={(e) => e.target.style.display = 'none'}
-                            />
-                            <div className="flex-1 min-w-0">
-                                <div className="font-bold text-gray-900 dark:text-white truncate">{currentLover.name}</div>
-                                <div className="text-xs text-gray-500 truncate">{currentLover.description || '暂无简介...'}</div>
+                    <motion.div
+                        className="bg-white/80 dark:bg-white/5 backdrop-blur-xl p-4 rounded-2xl flex items-center gap-4 cursor-pointer shadow-lg border border-white/20"
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setCurrentPage('editor')}
+                    >
+                        <img
+                            src={getAvatarUrl(currentLover.avatar)}
+                            className="w-14 h-14 rounded-2xl object-cover border-2 border-pink-200 dark:border-pink-800"
+                            onError={(e) => e.target.style.display = 'none'}
+                        />
+                        <div className="flex-1 min-w-0">
+                            <div className="font-bold text-gray-900 dark:text-white truncate">{currentLover.name}</div>
+                            <div className="text-xs text-gray-500 truncate">{currentLover.description || '暂无简介...'}</div>
+                        </div>
+                        <div className="flex items-center text-pink-500 text-xs font-semibold bg-pink-50 dark:bg-pink-900/20 px-3 py-1.5 rounded-full">
+                            <Edit size={14} className="mr-1" />
+                            编辑
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* 亲密度调节 */}
+                {currentLover && (
+                    <div className="bg-white/80 dark:bg-white/5 backdrop-blur-xl rounded-2xl p-4 shadow-sm border border-white/20">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <Heart size={18} className="text-pink-500" fill="#FF6B8A" />
+                                <span className="font-semibold text-gray-900 dark:text-white">亲密度</span>
                             </div>
-                            <div className="flex items-center text-pink-500 text-xs font-medium bg-pink-50 dark:bg-pink-900/20 px-3 py-1.5 rounded-full">
-                                <Edit size={14} className="mr-1" />
-                                编辑人设
-                            </div>
+                            <span className="text-lg font-bold text-pink-500">{currentLover.intimacy || 0}%</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={currentLover.intimacy || 0}
+                            onChange={(e) => { triggerHaptic(); updateLover(currentLoverId, { intimacy: parseInt(e.target.value) }); }}
+                            className="w-full h-2 bg-gradient-to-r from-gray-200 to-pink-200 dark:from-gray-700 dark:to-pink-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                        />
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                            <span>💔 陌路</span>
+                            <span>初识</span>
+                            <span>熟悉</span>
+                            <span>亲密</span>
+                            <span>💕 热恋</span>
                         </div>
                     </div>
                 )}
 
-                {/* 2. 用户人设选择 */}
+                {/* 用户人设选择 */}
                 <div className="space-y-2">
-                    <div className="flex items-center gap-2 px-2">
+                    <div className="flex items-center gap-2 px-1">
                         <UserCheck size={14} className="text-gray-400" />
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">我的设定 (Persona)</span>
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">我的设定</span>
                     </div>
-
                     <div className="grid grid-cols-2 gap-3">
                         {allPersonas.map(p => {
                             const isSelected = currentLover?.userPersonaId === p.id;
@@ -91,19 +373,16 @@ const HeartbeatSettings = () => {
                             const avatarSrc = getAvatarUrl(p.avatar);
 
                             return (
-                                <button
+                                <motion.button
                                     key={p.id}
                                     onClick={() => handleSelectPersona(p)}
+                                    whileTap={{ scale: 0.97 }}
                                     className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isSelected
-                                        ? 'bg-pink-50 border-pink-200 ring-1 ring-pink-500/20 dark:bg-pink-900/20 dark:border-pink-500/30'
-                                        : 'bg-white border-transparent hover:bg-gray-50 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/5'
-                                        }`}
+                                        ? 'bg-pink-50 border-pink-200 ring-2 ring-pink-500/20 dark:bg-pink-900/20 dark:border-pink-500/30'
+                                        : 'bg-white border-transparent hover:bg-gray-50 dark:bg-white/5 dark:hover:bg-white/10'}`}
                                 >
                                     <div className="relative">
-                                        <img
-                                            src={avatarSrc}
-                                            className="w-10 h-10 rounded-full object-cover bg-gray-100 dark:bg-gray-800"
-                                        />
+                                        <img src={avatarSrc} className="w-10 h-10 rounded-full object-cover bg-gray-100" />
                                         {isSelected && (
                                             <div className="absolute -bottom-1 -right-1 bg-pink-500 text-white rounded-full p-0.5 border-2 border-white dark:border-[#1C1C1E]">
                                                 <Check size={10} strokeWidth={3} />
@@ -116,245 +395,36 @@ const HeartbeatSettings = () => {
                                         </span>
                                         {p.isActive && <span className="text-[10px] text-gray-400">全局默认</span>}
                                     </div>
-                                </button>
+                                </motion.button>
                             );
                         })}
-
-                        {/* 添加人设引导 */}
                         <button
-                            className="flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-gray-300 dark:border-white/10 text-gray-400 gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                            onClick={() => {/* TODO: 跳转到 Messenger 的 "我" 页面，或者弹窗提示 */ }}
+                            className="flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-gray-300 dark:border-white/10 text-gray-400 gap-2 hover:bg-gray-50 dark:hover:bg-white/5"
+                            onClick={() => { triggerHaptic(); }}
                         >
                             <User size={20} />
-                            <span className="text-xs">去[我]添加新形象</span>
+                            <span className="text-xs">添加形象</span>
                         </button>
                     </div>
                 </div>
 
-                {/* 3. 通用设置 (原有的) */}
-                <div className="space-y-2">
-                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2">通用设置</div>
-                    <div className="bg-white dark:bg-white/5 rounded-2xl overflow-hidden divide-y divide-gray-100 dark:divide-white/5 shadow-sm">
+                {/* 折叠式设置区 */}
+                <div className="space-y-3">
+                    <Section id="display" label="显示与模式" icon={Palette} expandedSection={expandedSection} toggleSection={toggleSection}>
+                        {renderDisplaySection()}
+                    </Section>
 
-                        {/* 亲密度调节 (仅当有角色时显示) */}
-                        {currentLover && (
-                            <div className="hb-settings-item px-4">
-                                <div className="flex flex-col gap-1 w-full">
-                                    <div className="flex justify-between items-center">
-                                        <span className="hb-settings-label">当前亲密度</span>
-                                        <span className="text-sm font-bold text-pink-500">{currentLover.intimacy || 0}%</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="100"
-                                        step="1"
-                                        value={currentLover.intimacy || 0}
-                                        onChange={(e) => updateLover(currentLoverId, { intimacy: parseInt(e.target.value) })}
-                                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500 mt-2"
-                                    />
-                                    <div className="flex justify-between text-[10px] text-gray-400">
-                                        <span>陌路(0)</span>
-                                        <span>热恋(100)</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                    <Section id="output" label="输出控制" icon={Type} expandedSection={expandedSection} toggleSection={toggleSection}>
+                        {renderOutputSection()}
+                    </Section>
 
-                        {/* 显示模式 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label">显示模式</span>
-                            <select
-                                value={settings.displayMode}
-                                onChange={(e) => updateSetting('displayMode', e.target.value)}
-                                className="hb-settings-select"
-                            >
-                                <option value="story">阅读模式</option>
-                                <option value="bubble">气泡模式</option>
-                                <option value="immersive">沉浸模式</option>
-                            </select>
-                        </div>
+                    <Section id="effects" label="效果开关" icon={Sparkles} expandedSection={expandedSection} toggleSection={toggleSection}>
+                        {renderEffectsSection()}
+                    </Section>
 
-                        {/* 角色人称（AI自称） */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label">角色人称</span>
-                            <select
-                                value={settings.charPerspective}
-                                onChange={(e) => updateSetting('charPerspective', e.target.value)}
-                                className="hb-settings-select"
-                            >
-                                <option value="first">第一人称 (我)</option>
-                                <option value="third">第三人称 (人物名字)</option>
-                            </select>
-                        </div>
-
-                        {/* 用户人称（AI称呼你） */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label">你的人称</span>
-                            <select
-                                value={settings.userPerspective}
-                                onChange={(e) => updateSetting('userPerspective', e.target.value)}
-                                className="hb-settings-select"
-                            >
-                                <option value="second">第二人称 (你)</option>
-                                <option value="third">第三人称 (你的名字)</option>
-                            </select>
-                        </div>
-
-                        {/* 输出字数 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label">输出字数</span>
-                            <input
-                                type="number"
-                                value={settings.outputLength}
-                                onChange={(e) => updateSetting('outputLength', parseInt(e.target.value) || 500)}
-                                className="hb-settings-input"
-                                min={50}
-                                max={1000}
-                                step={10}
-                                placeholder="300-700"
-                            />
-                        </div>
-
-                        {/* 记忆深度 (History Limit) */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label">记忆深度</span>
-                            <div className="flex items-center gap-2 flex-1 justify-end">
-                                <input
-                                    type="number"
-                                    min="5"
-                                    max="100"
-                                    step="1"
-                                    value={settings.historyLimit || 20}
-                                    onChange={(e) => updateSetting('historyLimit', parseInt(e.target.value))}
-                                    className="hb-settings-input w-24 text-center"
-                                    placeholder="默认20"
-                                />
-                            </div>
-                        </div>
-
-                        {/* 打字机效果 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label">打字机效果</span>
-                            <label className="hb-toggle">
-                                <input
-                                    type="checkbox"
-                                    checked={settings.typewriterEffect}
-                                    onChange={(e) => updateSetting('typewriterEffect', e.target.checked)}
-                                />
-                                <span className="hb-toggle-slider"></span>
-                            </label>
-                        </div>
-
-                        {/* 场景音效 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label">场景音效</span>
-                            <label className="hb-toggle">
-                                <input
-                                    type="checkbox"
-                                    checked={settings.soundEffect}
-                                    onChange={(e) => updateSetting('soundEffect', e.target.checked)}
-                                />
-                                <span className="hb-toggle-slider"></span>
-                            </label>
-                        </div>
-
-                        {/* 自动续写 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label">自动续写</span>
-                            <label className="hb-toggle">
-                                <input
-                                    type="checkbox"
-                                    checked={settings.autoConversation}
-                                    onChange={(e) => updateSetting('autoConversation', e.target.checked)}
-                                />
-                                <span className="hb-toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 4. 个性化颜色 */}
-                <div className="space-y-2">
-                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2">个性化颜色 (点击修改)</div>
-                    <div className="bg-white dark:bg-white/5 rounded-2xl overflow-hidden divide-y divide-gray-100 dark:divide-white/5 shadow-sm">
-                        {/* 主题色 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-[var(--hb-primary)]"></span>
-                                主题色 (名字/重点)
-                            </span>
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-white/10 relative">
-                                <input
-                                    type="color"
-                                    value={settings.colors?.primary || '#FF6B8A'}
-                                    onChange={(e) => updateSetting('colors', { ...settings.colors, primary: e.target.value })}
-                                    className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 border-0"
-                                />
-                            </div>
-                        </div>
-
-                        {/* 动作色 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-[var(--hb-action)]"></span>
-                                动作色 (*...*)
-                            </span>
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-white/10 relative">
-                                <input
-                                    type="color"
-                                    value={settings.colors?.action || '#FF8C69'}
-                                    onChange={(e) => updateSetting('colors', { ...settings.colors, action: e.target.value })}
-                                    className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 border-0"
-                                />
-                            </div>
-                        </div>
-
-                        {/* 心理色 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-[var(--hb-thought)]"></span>
-                                心理色 (内心的想法)
-                            </span>
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-white/10 relative">
-                                <input
-                                    type="color"
-                                    value={settings.colors?.thought || '#888888'}
-                                    onChange={(e) => updateSetting('colors', { ...settings.colors, thought: e.target.value })}
-                                    className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 border-0"
-                                />
-                            </div>
-                        </div>
-
-                        {/* 正文色 */}
-                        <div className="hb-settings-item px-4">
-                            <span className="hb-settings-label flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-[var(--hb-text)]"></span>
-                                正文色 (普通对话)
-                            </span>
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-white/10 relative">
-                                <input
-                                    type="color"
-                                    value={settings.colors?.text || '#333333'}
-                                    onChange={(e) => updateSetting('colors', { ...settings.colors, text: e.target.value })}
-                                    className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 border-0"
-                                />
-                            </div>
-                        </div>
-
-                        {/* 重置按钮 */}
-                        <button
-                            className="w-full py-3 text-sm text-center text-gray-400 hover:text-gray-600 active:bg-gray-50 transition-colors"
-                            onClick={() => updateSetting('colors', {
-                                primary: '#FF6B8A',
-                                action: '#FF8C69',
-                                thought: '#888888',
-                                text: '#333333'
-                            })}
-                        >
-                            恢复默认颜色
-                        </button>
-                    </div>
+                    <Section id="colors" label="个性化颜色" icon={Palette} expandedSection={expandedSection} toggleSection={toggleSection}>
+                        {renderColorsSection()}
+                    </Section>
                 </div>
             </div>
         </div>

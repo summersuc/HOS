@@ -4,6 +4,8 @@ import Desktop from './components/Desktop/Desktop';
 import AppWindow from './components/AppWindow/AppWindow';
 import { AppProvider } from './hooks/useApp';
 import { ThemeProvider } from './context/ThemeContext';
+import { KillSwitch } from './components/KillSwitch';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { db } from './db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useProactiveWatchdog } from './hooks/useProactiveWatchdog';
@@ -95,33 +97,37 @@ function App() {
 
   // --- 4. 渲染界面 ---
   return (
-    <BrowserRouter>
-      <AppProvider>
-        <ThemeProvider>
-          <div
-            className="relative w-full h-[100dvh] overflow-hidden bg-transparent text-gray-900 select-none"
-            style={{ fontFamily: 'var(--system-font, "Inter", sans-serif)' }}
-          >
-            {/* 壁纸层 */}
-            <div className="fixed inset-0 z-[-1] bg-[#F5F5F7] dark:bg-black transition-colors duration-500 overflow-hidden">
-              {finalWallpaper ? (
-                <img src={finalWallpaper} className="w-full h-full object-cover" alt="wallpaper" />
-              ) : (
-                <>
-                  <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-100/30 dark:bg-indigo-500/10 blur-[100px] transition-colors duration-500" />
-                  <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-pink-100/30 dark:bg-purple-500/10 blur-[100px] transition-colors duration-500" />
-                </>
-              )}
-            </div>
+    <KillSwitch>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <AppProvider>
+            <ThemeProvider>
+              <div
+                className="relative w-full h-[100dvh] overflow-hidden bg-transparent text-gray-900 select-none"
+                style={{ fontFamily: 'var(--system-font, "Inter", sans-serif)' }}
+              >
+                {/* 壁纸层 */}
+                <div className="fixed inset-0 z-[-1] bg-[#F5F5F7] dark:bg-black transition-colors duration-500 overflow-hidden">
+                  {finalWallpaper ? (
+                    <img src={finalWallpaper} className="w-full h-full object-cover" alt="wallpaper" />
+                  ) : (
+                    <>
+                      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-100/30 dark:bg-indigo-500/10 blur-[100px] transition-colors duration-500" />
+                      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-pink-100/30 dark:bg-purple-500/10 blur-[100px] transition-colors duration-500" />
+                    </>
+                  )}
+                </div>
 
-            <div className="relative z-10 w-full h-full">
-              <Desktop />
-            </div>
-            <AppWindow />
-          </div>
-        </ThemeProvider>
-      </AppProvider>
-    </BrowserRouter>
+                <div className="relative z-10 w-full h-full">
+                  <Desktop />
+                </div>
+                <AppWindow />
+              </div>
+            </ThemeProvider>
+          </AppProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
+    </KillSwitch>
   );
 }
 

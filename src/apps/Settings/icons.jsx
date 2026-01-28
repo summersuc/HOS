@@ -102,7 +102,7 @@ export const DataIcon = ({ size = 20, color = "currentColor", ...props }) => (
     </svg>
 );
 
-// 关于 HOS (Info) - 歪歪扭扭的感叹号
+// 关于 suki (Info) - 歪歪扭扭的感叹号
 export const InfoIcon = ({ size = 20, color = "currentColor", ...props }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={STROKE_WIDTH} strokeLinecap="round" strokeLinejoin="round" {...props}>
         <path d="M12 3.5c-4.5 0-8 3.5-8 8s3.5 8 8 8 8-3.5 8-8-3.5-8-8-8z" />

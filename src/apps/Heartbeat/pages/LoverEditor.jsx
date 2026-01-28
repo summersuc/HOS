@@ -19,15 +19,24 @@ const Field = ({ label, icon, children }) => (
     </div>
 );
 
-const LoverEditor = () => {
+const LoverEditor = (props) => {
+    const hbContext = useHeartbeat() || {};
     const {
-        currentLoverId,
-        currentLover,
-        setCurrentPage,
-        createLover,
-        updateLover,
-        deleteLover,
-    } = useHeartbeat();
+        currentLoverId: contextId,
+        currentLover: contextLover,
+        setCurrentPage: contextSetPage,
+        createLover: contextCreate,
+        updateLover: contextUpdate,
+        deleteLover: contextDelete,
+    } = hbContext;
+
+    // 优先使用 props 传入的值，作为 Context 丢失时的兜底
+    const currentLoverId = props.currentLoverId || contextId;
+    const currentLover = props.currentLover || contextLover;
+    const setCurrentPage = props.setCurrentPage || contextSetPage;
+    const createLover = props.createLover || contextCreate;
+    const updateLover = props.updateLover || contextUpdate;
+    const deleteLover = props.deleteLover || contextDelete;
 
     const isNew = !currentLoverId;
     const fileInputRef = useRef(null);

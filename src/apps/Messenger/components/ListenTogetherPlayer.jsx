@@ -9,7 +9,7 @@ import { db } from '../../../db/schema';
 
 const ListenTogetherPlayer = ({ visible, onClose, conversationId, onSwitchPlaylist, onQuit }) => {
     const { currentTrack, isPlaying, togglePlay, playNextTrack, playPrevTrack, queue, playTrack, toggleMode, mode } = useAudio();
-    const { isEnabled, set: setListenTogether } = useListenTogether();
+    const { isEnabled, stop } = useListenTogether();
     const [showQueue, setShowQueue] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
 
@@ -269,8 +269,8 @@ const ListenTogetherPlayer = ({ visible, onClose, conversationId, onSwitchPlayli
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    setListenTogether(false);
-                                    if (onQuit) onQuit();
+                                    stop();
+                                    if (onQuit) onQuit(currentTrack);
                                     onClose();
                                 }}
                                 className="w-full mt-1 py-2 text-[11px] font-medium text-red-500/80 dark:text-red-400/80 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-white/10 rounded-xl transition-all border-t border-gray-200 dark:border-white/5 active:scale-98"
