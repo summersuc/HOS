@@ -20,6 +20,7 @@ export default defineConfig({
 
       // 🔒 Kill Switch 缓存配置 - 确保控制 API 不被缓存
       workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // 排除 /api/ 路径从导航回退
         navigateFallbackDenylist: [/^\/api\//],
         // 运行时缓存策略 - Kill Switch 永远走网络
